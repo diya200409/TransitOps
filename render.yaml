@@ -12,7 +12,7 @@ services:
       - key: TRANSITOPS_SECRET_KEY
         generateValue: true
       - key: TRANSITOPS_CORS_ORIGINS
-        value: https://transitops.vercel.app,http://localhost:5173,http://localhost:5174
+        value: https://transit-opsss.vercel.app,https://transitops.vercel.app,http://localhost:5173,http://localhost:5174
       - key: DATABASE_URL
         fromDatabase:
           name: transitops-db
