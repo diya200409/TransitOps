@@ -20,8 +20,24 @@ from .routers import (
     vehicles,
 )
 
-# Create all tables on startup
+# Create all tables on startup and automatically seed demo data if database is empty
 Base.metadata.create_all(bind=engine)
+try:
+    from .database import SessionLocal
+    from .models import User
+    with SessionLocal() as _db:
+        if _db.query(User).first() is None:
+            import sys
+            from pathlib import Path
+            _backend_dir = Path(__file__).parent.parent
+            if str(_backend_dir) not in sys.path:
+                sys.path.insert(0, str(_backend_dir))
+            import seed
+            print("Database empty upon startup. Automatically running initial seed...")
+            seed.seed()
+except Exception as _e:
+    print(f"Startup check/seed note: {_e}")
+
 
 app = FastAPI(
     title="TransitOps API",
@@ -29,14 +45,19 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — restricted to configured origins for security
-# Production deployments MUST set TRANSITOPS_CORS_ORIGINS environment variable
+# CORS — restricted to configured origins or allowed regex for deployment flexibility
+# Production deployments MUST set TRANSITOPS_CORS_ORIGINS environment variable (or * / Railway URLs)
+_origins = get_cors_origins()
+_cors_origins = [o for o in _origins if o != "*"]
+_allow_regex = r".*" if "*" in _origins else r"https://.*\.up\.railway\.app|https://.*\.onrender\.com|https://.*\.vercel\.app|http://localhost:\d+|http://127\.0\.0\.1:\d+"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),  # Explicitly configured origins only
+    allow_origins=_cors_origins,  # Explicitly configured origins
+    allow_origin_regex=_allow_regex,  # Handles Railway/Vercel/Render subdomains & wildcards gracefully
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
-    allow_headers=["Authorization", "Content-Type"],  # Explicit headers
+    allow_methods=["*"],
+    allow_headers=["*"],
     max_age=600,  # Cache preflight requests for 10 minutes
 )
 

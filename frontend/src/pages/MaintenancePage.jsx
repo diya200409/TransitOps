@@ -177,7 +177,22 @@ export default function MaintenancePage() {
         )}
       </div>
 
-      {/* ── Table ── */}
+      {/* ── Error Banner ── */}
+      {error && !loading && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <AlertTriangle size={16} className="text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-red-700 font-medium">Failed to load maintenance records</p>
+            <p className="text-xs text-red-600 mt-0.5">{error}</p>
+          </div>
+          <button
+            onClick={refresh}
+            className="ml-4 px-3 py-1 bg-red-600 text-white text-sm rounded font-medium hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       <DataTable
         columns={columns}
         rows={records}

@@ -404,11 +404,20 @@ export default function FuelExpensesPage() {
         </div>
       </div>
 
-      {currentError && !currentLoading ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          {currentError}
+      {currentError && !currentLoading && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 flex items-center justify-between">
+          <div>
+            <p className="font-semibold">⚠️ Error loading data</p>
+            <p>{currentError}</p>
+          </div>
+          <button
+            onClick={activeTab === 'fuel' ? refreshFuel : refreshExpenses}
+            className="ml-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+          >
+            Retry
+          </button>
         </div>
-      ) : null}
+      )}
 
       <DataTable
         columns={activeTab === 'fuel' ? fuelColumns : expenseColumns}
