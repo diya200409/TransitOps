@@ -28,11 +28,20 @@ export function AuthProvider({ children }) {
 
   // Hydrate session from localStorage on first load
   useEffect(() => {
-    const storedToken = localStorage.getItem(TOKEN_KEY)
-    const storedUser  = localStorage.getItem(USER_KEY)
-    if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
+    try {
+      const storedToken = localStorage.getItem(TOKEN_KEY)
+      const storedUser  = localStorage.getItem(USER_KEY)
+      if (storedToken && storedUser) {
+        const parsed = JSON.parse(storedUser)
+        // If mock mode is on, always enforce fleet_manager role
+        // so stale localStorage can't break the UI
+        if (USE_MOCK_LOGIN) parsed.role = 'fleet_manager'
+        setToken(storedToken)
+        setUser(parsed)
+      }
+    } catch {
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(USER_KEY)
     }
     setLoading(false)
   }, [])
