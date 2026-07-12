@@ -64,22 +64,31 @@ Operational Analytics
 
 ## 📁 Project Structure
 
+## 📁 Project Structure
+
+```text
 TransitOps/
+│
 ├── frontend/
 │   └── src/
 │       ├── components/
 │       ├── pages/
+│       │   ├── Dashboard.jsx
+│       │   ├── Vehicles.jsx
+│       │   └── Drivers.jsx
 │       ├── App.jsx
 │       └── main.jsx
+│
 ├── backend/
 │   ├── main.py
 │   ├── database.py
 │   ├── models.py
 │   ├── schemas.py
 │   └── routes.py
+│
 ├── README.md
 └── .gitignore
-
+```
 ## 👥 Team
 
 2-Member Hackathon Team
