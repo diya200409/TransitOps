@@ -2,37 +2,103 @@
 
 ## Smart Transport Operations Platform
 
-TransitOps is a centralized transport operations platform designed to digitize and simplify fleet management, driver management, trip dispatching, maintenance, fuel tracking, and operational expense management.
+TransitOps is a centralized transport operations platform built to simplify and digitize vehicle, driver, trip, maintenance, fuel, and expense management.
+
+The platform reduces dependency on spreadsheets and manual logbooks by providing real-time operational visibility and automated business workflows.
 
 ## 🎯 Objective
 
-To build an end-to-end transport operations platform that improves operational visibility, enforces business rules, and reduces dependency on spreadsheets and manual logbooks.
+To build an end-to-end transport operations platform that manages fleet operations, enforces dispatch rules, automates status transitions, and provides operational insights.
 
 ## ✨ Core Features
 
-- Secure Authentication and Role-Based Access Control
-- Operational Dashboard with KPIs
-- Vehicle Registry and Management
+- Dashboard with Fleet KPIs
+- Vehicle Management
 - Driver Management
 - Trip Creation and Dispatch
-- Automated Status Transitions
+- Dispatch Validation Rules
+- Automatic Vehicle and Driver Status Updates
 - Maintenance Management
 - Fuel and Expense Tracking
-- Reports and Operational Analytics
+- Operational Analytics
+- Search and Filters
+- Responsive User Interface
+
+## 🔄 Core Workflow
+
+Vehicle & Driver Registration  
+↓  
+Trip Creation  
+↓  
+Business Rule Validation  
+↓  
+Trip Dispatch  
+↓  
+Automatic Status Updates  
+↓  
+Trip Completion  
+↓  
+Maintenance & Expense Tracking  
+↓  
+Operational Analytics
 
 ## 🛠️ Tech Stack
 
+### Frontend
 - React
+- Vite
 - Tailwind CSS
+
+### Backend
 - FastAPI
+- Python
 - SQLAlchemy
+
+### Database
 - SQLite
-- Recharts
-- Git & GitHub
+
+### Other Tools
+- Git
+- GitHub
+- AI-Assisted Development
+
+## 📁 Project Structure
+
+TransitOps/
+├── frontend/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── App.jsx
+│       └── main.jsx
+├── backend/
+│   ├── main.py
+│   ├── database.py
+│   ├── models.py
+│   ├── schemas.py
+│   └── routes.py
+├── README.md
+└── .gitignore
 
 ## 👥 Team
 
 2-Member Hackathon Team
+
+### Frontend & Fleet Management
+- Dashboard
+- Vehicle Management
+- Driver Management
+- Responsive UI
+- API Integration
+
+### Backend & Operations Logic
+- Database
+- APIs
+- Trip Management
+- Dispatch Validations
+- Maintenance
+- Fuel and Expense Management
+- Analytics
 
 ## 🚧 Project Status
 
@@ -40,4 +106,4 @@ Currently under active development.
 
 ---
 
-Built for an 8-hour hackathon.
+Built as part of an 8-hour hackathon challenge.
