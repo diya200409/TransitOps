@@ -10,6 +10,25 @@
 
 ---
 
+## 🚀 Live Production Demo (Judge Evaluation Access)
+
+We have deployed TransitOps to a live production environment for instant access and testing by evaluators and judges:
+
+> **🔗 [Launch Live Application (`https://transit-opsss.vercel.app/login`)](https://transit-opsss.vercel.app/login)**
+
+### 🔑 Instant Evaluation Credentials (Pre-seeded Demo Accounts)
+
+To evaluate the full administrative suite, live telemetry, interactive dashboards, and role-based permissions without registering, use the **Fleet Manager** account:
+
+| Role | Email | Password | Access & Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Fleet Manager** *(Recommended)* | `fleetmanager@transitops.com` | `password123` | Full administrative access across all modules, analytics, driver profiles, and financial logs |
+| **Driver** | `driver@transitops.com` | `password123` | Driver portal: Assigned trips, fuel logging, safety score, and personal status |
+| **Safety Officer** | `safety@transitops.com` | `password123` | Safety view: Driver profiles, license tracking, compliance, and expiry alerts |
+| **Financial Analyst** | `finance@transitops.com` | `password123` | Finance view: Fuel expenses, cost analysis, and financial reporting |
+
+---
+
 ## 📑 Table of Contents
 
 - [Overview](#-overview)
@@ -324,10 +343,12 @@ GET /analytics/vehicles/export/pdf    # Export PDF report
 
 ---
 
-## 🔑 Demo Credentials
+## 🔑 Demo Credentials & Live Link
+
+**Live Application URL**: [https://transit-opsss.vercel.app/login](https://transit-opsss.vercel.app/login)
 
 ```javascript
-// Fleet Manager (Full Access)
+// Fleet Manager (Full Access - Recommended for Evaluation)
 Email: fleetmanager@transitops.com
 Password: password123
 
