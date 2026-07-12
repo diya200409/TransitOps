@@ -8,11 +8,10 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import JWTError, jwt
 
+from .config import ACCESS_TOKEN_EXPIRE_HOURS, ALGORITHM, SECRET_KEY
+
 # ── Configuration ────────────────────────────────────────────────────────────
 
-SECRET_KEY = "transitops-secret-key-change-in-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 12
 
 
 # ── Password Hashing ────────────────────────────────────────────────────────

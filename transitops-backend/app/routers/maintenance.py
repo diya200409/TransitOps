@@ -73,13 +73,14 @@ def close_maintenance(
     db: Session = Depends(get_db),
 ):
     """
-    Close a maintenance record.
+    Close a maintenance record with database locking to prevent race conditions.
     - Optionally update cost.
     - Auto-restore vehicle to Available only if:
       (a) vehicle is not Retired, AND
       (b) no OTHER still-Open maintenance record exists on the same vehicle.
     """
-    record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
+    # Lock the maintenance record to prevent concurrent closure
+    record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).with_for_update().first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Maintenance record not found.")
 
@@ -96,8 +97,8 @@ def close_maintenance(
     record.status = MaintenanceStatus.Closed
     record.closed_at = datetime.now(timezone.utc)
 
-    # Auto-restore vehicle to Available — but check conditions
-    vehicle = db.query(Vehicle).filter(Vehicle.id == record.vehicle_id).first()
+    # Auto-restore vehicle to Available — but check conditions with row locking
+    vehicle = db.query(Vehicle).filter(Vehicle.id == record.vehicle_id).with_for_update().first()
     if vehicle and vehicle.status != VehicleStatus.Retired:
         # Check if any OTHER Open maintenance records exist for this vehicle
         other_open = (
@@ -120,19 +121,34 @@ def close_maintenance(
 @router.get("", response_model=list[MaintenanceResponse])
 def list_maintenance(
     vehicle_id: Optional[int] = Query(None),
-    status: Optional[str] = Query(None),
+    status: Optional[MaintenanceStatus] = Query(None),
+    sort_by: Optional[str] = Query(None, description="Field to sort by: status, cost, created_at, closed_at"),
+    sort_order: Optional[str] = Query("desc", description="asc or desc"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List maintenance records with optional filters."""
+    """List maintenance records with optional filters and sorting."""
     query = db.query(MaintenanceRecord)
 
     if vehicle_id:
         query = query.filter(MaintenanceRecord.vehicle_id == vehicle_id)
     if status:
-        query = query.filter(MaintenanceRecord.status == MaintenanceStatus(status))
+        query = query.filter(MaintenanceRecord.status == status)
 
-    return query.order_by(MaintenanceRecord.created_at.desc()).all()
+    # Sorting
+    sort_field_map = {
+        "status": MaintenanceRecord.status,
+        "cost": MaintenanceRecord.cost,
+        "created_at": MaintenanceRecord.created_at,
+        "closed_at": MaintenanceRecord.closed_at,
+    }
+    sort_col = sort_field_map.get(sort_by, MaintenanceRecord.created_at)
+    if sort_order == "asc":
+        query = query.order_by(sort_col.asc())
+    else:
+        query = query.order_by(sort_col.desc())
+
+    return query.all()
 
 
 @router.get("/{record_id}", response_model=MaintenanceResponse)

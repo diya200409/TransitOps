@@ -3,7 +3,7 @@ TransitOps — Driver CRUD router.
 Endpoints: create, list (filterable), available pool, get, update, delete.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import get_current_user, require_roles
 from ..models import Driver, DriverStatus, User
-from ..schemas import DriverCreate, DriverResponse, DriverUpdate
+from ..schemas import DriverCreate, DriverResponse, DriverUpdate, ExpiringDriverResponse
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
 
@@ -60,23 +60,39 @@ def create_driver(body: DriverCreate, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[DriverResponse])
 def list_drivers(
-    status: Optional[str] = Query(None),
+    status: Optional[DriverStatus] = Query(None),
     search: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, description="Field to sort by: name, status, safety_score, license_expiry_date, created_at"),
+    sort_order: Optional[str] = Query("asc", description="asc or desc"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List drivers with optional filters. Search matches name or license_number."""
+    """List drivers with optional filters and sorting."""
     query = db.query(Driver)
 
     if status:
-        query = query.filter(Driver.status == DriverStatus(status))
+        query = query.filter(Driver.status == status)
     if search:
         query = query.filter(
             (Driver.name.ilike(f"%{search}%"))
             | (Driver.license_number.ilike(f"%{search}%"))
         )
 
-    return query.order_by(Driver.created_at.desc()).all()
+    # Sorting
+    sort_field_map = {
+        "name": Driver.name,
+        "status": Driver.status,
+        "safety_score": Driver.safety_score,
+        "license_expiry_date": Driver.license_expiry_date,
+        "created_at": Driver.created_at,
+    }
+    sort_col = sort_field_map.get(sort_by, Driver.created_at)
+    if sort_order == "asc":
+        query = query.order_by(sort_col.asc())
+    else:
+        query = query.order_by(sort_col.desc())
+
+    return query.all()
 
 
 @router.get("/available/pool", response_model=list[DriverResponse])
@@ -89,6 +105,7 @@ def available_driver_pool(
     Excludes Suspended, Off Duty, On Trip, and expired-license drivers.
     This is the dropdown source for trip creation.
     """
+    # Use timezone-aware datetime for consistent comparison
     now = datetime.now(timezone.utc)
     return (
         db.query(Driver)
@@ -99,6 +116,125 @@ def available_driver_pool(
         .order_by(Driver.name)
         .all()
     )
+
+
+@router.get("/expiring-licenses", response_model=list[ExpiringDriverResponse])
+def expiring_licenses(
+    days: int = Query(30, ge=0, description="Return drivers whose license expires within this many days (default 30)."),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """
+    Return drivers whose license expires within `days` days (or is already expired).
+    Useful for the Safety Officer role to surface compliance alerts.
+    Results are sorted by license_expiry_date ascending (soonest first).
+    """
+    # Use timezone-aware datetime for consistent comparison
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=days)
+    drivers = (
+        db.query(Driver)
+        .filter(Driver.license_expiry_date <= cutoff)
+        .order_by(Driver.license_expiry_date.asc())
+        .all()
+    )
+
+    result = []
+    for d in drivers:
+        expiry = d.license_expiry_date
+        # Normalize expiry to timezone-aware for comparison
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        delta = (expiry - now).days  # negative = already expired
+        result.append(
+            ExpiringDriverResponse(
+                **{col.key: getattr(d, col.key) for col in Driver.__table__.columns},
+                days_until_expiry=delta,
+            )
+        )
+    return result
+
+
+@router.post(
+    "/send-expiry-reminders",
+    dependencies=[Depends(require_roles("fleet_manager", "safety_officer"))],
+)
+def send_expiry_reminders(
+    days: int = Query(30, ge=0, description="Send reminders for drivers whose license expires within this many days."),
+    recipient_email: str = Query(..., description="Email address to send reminders to."),
+    db: Session = Depends(get_db),
+):
+    """
+    Manually trigger email reminders for drivers with expiring licenses.
+    Sends one email per driver to the specified recipient_email.
+    Returns a summary of sent/failed emails.
+    """
+    from ..email_service import is_smtp_configured, send_license_expiry_reminder
+
+    # Use timezone-aware datetime for consistent comparison
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=days)
+    drivers = (
+        db.query(Driver)
+        .filter(Driver.license_expiry_date <= cutoff)
+        .order_by(Driver.license_expiry_date.asc())
+        .all()
+    )
+
+    if not drivers:
+        return {
+            "detail": "No drivers with expiring licenses found within the specified period.",
+            "total": 0,
+            "sent": 0,
+            "failed": 0,
+        }
+
+    if not is_smtp_configured():
+        return {
+            "detail": "SMTP is not configured. Set TRANSITOPS_SMTP_* environment variables to enable email.",
+            "smtp_configured": False,
+            "total": len(drivers),
+            "sent": 0,
+            "failed": 0,
+            "drivers": [
+                {
+                    "name": d.name,
+                    "license_number": d.license_number,
+                    "expiry_date": d.license_expiry_date.isoformat(),
+                    "days_until_expiry": (
+                        (d.license_expiry_date.replace(tzinfo=timezone.utc) if d.license_expiry_date.tzinfo is None else d.license_expiry_date) - now
+                    ).days,
+                }
+                for d in drivers
+            ],
+        }
+
+    sent = 0
+    failed = 0
+    for d in drivers:
+        expiry = d.license_expiry_date
+        # Normalize expiry to timezone-aware
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        days_until = (expiry - now).days
+        success = send_license_expiry_reminder(
+            driver_name=d.name,
+            license_number=d.license_number,
+            expiry_date=d.license_expiry_date.strftime("%Y-%m-%d"),
+            days_until=days_until,
+            to_email=recipient_email,
+        )
+        if success:
+            sent += 1
+        else:
+            failed += 1
+
+    return {
+        "detail": f"Processed {len(drivers)} driver(s). Sent: {sent}, Failed: {failed}.",
+        "total": len(drivers),
+        "sent": sent,
+        "failed": failed,
+    }
 
 
 @router.get("/{driver_id}", response_model=DriverResponse)

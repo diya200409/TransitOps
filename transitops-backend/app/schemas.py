@@ -11,9 +11,12 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 # ── Auth Schemas ─────────────────────────────────────────────────────────────
 
 class SignupRequest(BaseModel):
-    email: str
-    password: str = Field(min_length=6)
-    full_name: str = Field(min_length=1)
+    email: EmailStr  # Enforce valid email format
+    password: str = Field(
+        min_length=8,  # Increased from 6 to 8
+        description="Password must be at least 8 characters with uppercase, lowercase, number, and special character"
+    )
+    full_name: str = Field(min_length=1, max_length=100)
     role: str  # UserRole value
 
 
@@ -115,6 +118,11 @@ class DriverResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+
+class ExpiringDriverResponse(DriverResponse):
+    """DriverResponse extended with days_until_expiry for the license-alert endpoint."""
+    days_until_expiry: int  # negative means already expired
 
 
 # ── Trip Schemas ─────────────────────────────────────────────────────────────
@@ -228,6 +236,7 @@ class DashboardKPIs(BaseModel):
     active_vehicles: int
     available_vehicles: int
     vehicles_in_maintenance: int
+    on_trip_vehicles: int          # vehicles currently On Trip
     active_trips: int
     pending_trips: int
     drivers_on_duty: int
@@ -249,3 +258,25 @@ class VehicleAnalytics(BaseModel):
     total_operational_cost: float
     revenue: float
     roi: Optional[float] = None
+
+
+# ── Vehicle Document Schemas ─────────────────────────────────────────────────
+
+class VehicleDocumentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    vehicle_id: int
+    document_type: str
+    file_name: str
+    file_path: str
+    uploaded_by_id: Optional[int] = None
+    expiry_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+
+class VehicleDocumentUpdate(BaseModel):
+    document_type: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    notes: Optional[str] = None

@@ -6,10 +6,12 @@ CORS enabled for React frontend, all routers registered, DB tables created on st
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .config import get_cors_origins
 from .database import Base, engine
 from .routers import (
     analytics,
     auth,
+    documents,
     drivers,
     fuel_expenses,
     maintenance,
@@ -26,13 +28,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — wide open for local dev against React frontend
+# CORS — restricted to configured origins for security
+# Production deployments MUST set TRANSITOPS_CORS_ORIGINS environment variable
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),  # Explicitly configured origins only
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
+    allow_headers=["Authorization", "Content-Type"],  # Explicit headers
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 # Register routers
@@ -43,6 +47,7 @@ app.include_router(trips.router)
 app.include_router(maintenance.router)
 app.include_router(fuel_expenses.router)
 app.include_router(analytics.router)
+app.include_router(documents.router)
 
 
 @app.get("/", tags=["Health"])

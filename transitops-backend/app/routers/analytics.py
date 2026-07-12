@@ -34,14 +34,15 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 @router.get("/dashboard", response_model=DashboardKPIs)
 def dashboard_kpis(
-    vehicle_type: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
+    vehicle_type: Optional[str] = Query(None, description="Filter vehicle KPIs by type (e.g. Truck, Van)"),
+    region: Optional[str] = Query(None, description="Filter vehicle KPIs by region"),
+    status: Optional[VehicleStatus] = Query(None, description="Filter vehicle KPIs by status (Available, On Trip, In Shop, Retired)"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
     """
     Dashboard KPI cards.
-    Optional filters: vehicle_type, region (apply to vehicle-related KPIs).
+    Optional filters: vehicle_type, region, status (apply to vehicle-related KPIs).
     """
     # Base vehicle query with optional filters
     vq = db.query(Vehicle)
@@ -49,6 +50,8 @@ def dashboard_kpis(
         vq = vq.filter(Vehicle.type.ilike(f"%{vehicle_type}%"))
     if region:
         vq = vq.filter(Vehicle.region.ilike(f"%{region}%"))
+    if status:
+        vq = vq.filter(Vehicle.status == status)
 
     # Non-retired vehicles (base for fleet metrics)
     non_retired = vq.filter(Vehicle.status != VehicleStatus.Retired)
@@ -80,6 +83,7 @@ def dashboard_kpis(
         active_vehicles=active_vehicles,
         available_vehicles=available_vehicles,
         vehicles_in_maintenance=vehicles_in_maintenance,
+        on_trip_vehicles=on_trip_vehicles,
         active_trips=active_trips,
         pending_trips=pending_trips,
         drivers_on_duty=drivers_on_duty,
@@ -160,21 +164,35 @@ def _compute_vehicle_analytics(vehicle: Vehicle, db: Session) -> VehicleAnalytic
 
 @router.get("/vehicles", response_model=list[VehicleAnalytics])
 def vehicle_analytics_list(
+    type: Optional[str] = Query(None, description="Filter by vehicle type (e.g. Truck, Van)"),
+    region: Optional[str] = Query(None, description="Filter by region"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """Per-vehicle analytics rollup for every vehicle."""
-    vehicles = db.query(Vehicle).order_by(Vehicle.id).all()
+    """Per-vehicle analytics rollup. Optionally filter by type and/or region."""
+    vq = db.query(Vehicle)
+    if type:
+        vq = vq.filter(Vehicle.type.ilike(f"%{type}%"))
+    if region:
+        vq = vq.filter(Vehicle.region.ilike(f"%{region}%"))
+    vehicles = vq.order_by(Vehicle.id).all()
     return [_compute_vehicle_analytics(v, db) for v in vehicles]
 
 
 @router.get("/vehicles/export/csv")
 def vehicle_analytics_csv(
+    type: Optional[str] = Query(None, description="Filter by vehicle type"),
+    region: Optional[str] = Query(None, description="Filter by region"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """Export per-vehicle analytics as a downloadable CSV."""
-    vehicles = db.query(Vehicle).order_by(Vehicle.id).all()
+    """Export per-vehicle analytics as a downloadable CSV. Supports same type/region filters as the list endpoint."""
+    vq = db.query(Vehicle)
+    if type:
+        vq = vq.filter(Vehicle.type.ilike(f"%{type}%"))
+    if region:
+        vq = vq.filter(Vehicle.region.ilike(f"%{region}%"))
+    vehicles = vq.order_by(Vehicle.id).all()
     analytics = [_compute_vehicle_analytics(v, db) for v in vehicles]
 
     output = io.StringIO()
@@ -222,6 +240,103 @@ def vehicle_analytics_csv(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=vehicle_analytics.csv"},
+    )
+
+
+@router.get("/vehicles/export/pdf")
+def vehicle_analytics_pdf(
+    type: Optional[str] = Query(None, description="Filter by vehicle type"),
+    region: Optional[str] = Query(None, description="Filter by region"),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Export per-vehicle analytics as a downloadable PDF report. Supports same type/region filters."""
+    from fpdf import FPDF
+
+    vq = db.query(Vehicle)
+    if type:
+        vq = vq.filter(Vehicle.type.ilike(f"%{type}%"))
+    if region:
+        vq = vq.filter(Vehicle.region.ilike(f"%{region}%"))
+    vehicles = vq.order_by(Vehicle.id).all()
+    analytics = [_compute_vehicle_analytics(v, db) for v in vehicles]
+
+    # Build PDF
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # Title
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 12, "TransitOps - Vehicle Analytics Report", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    from datetime import datetime as dt
+    pdf.cell(0, 6, f"Generated: {dt.utcnow().strftime('%Y-%m-%d %H:%M UTC')}", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    # Table header
+    headers = [
+        ("ID", 10), ("Reg. Number", 28), ("Model", 28), ("Type", 18),
+        ("Status", 18), ("Acq. Cost", 22), ("Distance", 22), ("Fuel (L)", 20),
+        ("Fuel Cost", 22), ("Eff. (km/L)", 22), ("Maint. Cost", 22),
+        ("Ops Cost", 22), ("Revenue", 22), ("ROI", 16),
+    ]
+
+    pdf.set_font("Helvetica", "B", 7)
+    pdf.set_fill_color(41, 128, 185)  # Blue header
+    pdf.set_text_color(255, 255, 255)
+    for header, width in headers:
+        pdf.cell(width, 8, header, border=1, fill=True, align="C")
+    pdf.ln()
+
+    # Table rows
+    pdf.set_font("Helvetica", "", 7)
+    pdf.set_text_color(0, 0, 0)
+    fill = False
+    for a in analytics:
+        if fill:
+            pdf.set_fill_color(235, 245, 251)
+        else:
+            pdf.set_fill_color(255, 255, 255)
+
+        row = [
+            str(a.vehicle_id),
+            a.registration_number,
+            a.name_model[:18],
+            a.type[:12],
+            a.status,
+            f"{a.acquisition_cost:,.0f}",
+            f"{a.total_distance:,.1f}",
+            f"{a.total_fuel_liters:,.1f}",
+            f"{a.total_fuel_cost:,.0f}",
+            f"{a.fuel_efficiency:.2f}" if a.fuel_efficiency is not None else "N/A",
+            f"{a.total_maintenance_cost:,.0f}",
+            f"{a.total_operational_cost:,.0f}",
+            f"{a.revenue:,.0f}",
+            f"{a.roi:.3f}" if a.roi is not None else "N/A",
+        ]
+
+        for i, (_, width) in enumerate(headers):
+            pdf.cell(width, 7, row[i], border=1, fill=True, align="C")
+        pdf.ln()
+        fill = not fill
+
+    # Summary
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 7, f"Total Vehicles: {len(analytics)}", new_x="LMARGIN", new_y="NEXT")
+    if analytics:
+        total_revenue = sum(a.revenue for a in analytics)
+        total_ops_cost = sum(a.total_operational_cost for a in analytics)
+        pdf.cell(0, 7, f"Total Revenue: {total_revenue:,.2f}  |  Total Operational Cost: {total_ops_cost:,.2f}", new_x="LMARGIN", new_y="NEXT")
+
+    # Output to bytes
+    pdf_bytes = pdf.output()
+
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=vehicle_analytics_report.pdf"},
     )
 
 

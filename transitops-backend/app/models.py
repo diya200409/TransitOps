@@ -107,6 +107,7 @@ class Vehicle(Base):
     maintenance_records = relationship("MaintenanceRecord", back_populates="vehicle")
     fuel_logs = relationship("FuelLog", back_populates="vehicle")
     expenses = relationship("Expense", back_populates="vehicle")
+    documents = relationship("VehicleDocument", back_populates="vehicle")
 
 
 class Driver(Base):
@@ -199,3 +200,29 @@ class Expense(Base):
     # Relationships
     vehicle = relationship("Vehicle", back_populates="expenses")
     trip = relationship("Trip", back_populates="expenses")
+
+
+class DocumentType(str, enum.Enum):
+    Insurance = "Insurance"
+    Registration = "Registration"
+    Permit = "Permit"
+    Inspection = "Inspection"
+    Other = "Other"
+
+
+class VehicleDocument(Base):
+    __tablename__ = "vehicle_documents"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
+    document_type = Column(Enum(DocumentType), nullable=False)
+    file_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    expiry_date = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    # Relationships
+    vehicle = relationship("Vehicle", back_populates="documents")
+    uploaded_by = relationship("User")

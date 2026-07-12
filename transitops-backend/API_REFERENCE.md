@@ -51,11 +51,14 @@ Create a new user.
 }
 ```
 
-### GET `/vehicles?status=&type=&region=&search=`
-**Auth:** Any authenticated user. `search` matches registration number or name/model.
+### GET `/vehicles?status=&type=&region=&search=&sort_by=&sort_order=`
+**Auth:** Any authenticated user.
+- `search` — matches registration number or name/model (case-insensitive)
+- `sort_by` — `registration_number | name_model | type | status | odometer | acquisition_cost | created_at`
+- `sort_order` — `asc | desc` (default: `desc`)
 
 ### GET `/vehicles/available/pool`
-**Auth:** Any. Returns only `Available` vehicles (dropdown source for trip creation).
+**Auth:** Any. Returns only `Available` vehicles — dropdown source for trip creation.
 
 ### GET `/vehicles/{id}`
 
@@ -63,7 +66,7 @@ Create a new user.
 **Auth:** `fleet_manager` only. Partial update — send only fields to change.
 
 ### DELETE `/vehicles/{id}`
-**Auth:** `fleet_manager` only. Blocked if vehicle has trip history.
+**Auth:** `fleet_manager` only. Blocked if vehicle has trip history (suggest `Retired` instead).
 
 ---
 
@@ -81,16 +84,33 @@ Create a new user.
 }
 ```
 
-### GET `/drivers?status=&search=`
+### GET `/drivers?status=&search=&sort_by=&sort_order=`
+- `sort_by` — `name | status | safety_score | license_expiry_date | created_at`
+- `sort_order` — `asc | desc` (default: `asc`)
+
 ### GET `/drivers/available/pool`
 Returns drivers with `status=Available` AND valid license (expiry > now).
+This is the trip-creation dropdown source.
+
+### GET `/drivers/expiring-licenses?days=30`
+**Auth:** Any authenticated user (primary audience: `safety_officer`)
+Returns drivers whose license expires within `days` days (default 30), including already-expired ones.
+Results sorted by expiry date ascending (soonest first).
+
+**Response includes extra field:**
+```json
+{
+  "id": 1, "name": "Rajesh Kumar", ...,
+  "days_until_expiry": 12   // negative = already expired
+}
+```
 
 ### GET `/drivers/{id}`
 ### PUT `/drivers/{id}`
 **Auth:** `fleet_manager` or `safety_officer`
 
 ### DELETE `/drivers/{id}`
-Blocked if driver has trip history.
+Blocked if driver has trip history (suggest `Off Duty` or `Suspended` instead).
 
 ---
 
@@ -113,7 +133,7 @@ Creates trip in `Draft` status. Validates vehicle/driver availability and cargo 
 
 ### POST `/trips/{id}/dispatch`
 **Auth:** `fleet_manager` or `driver`
-Re-validates everything, then sets vehicle & driver to `On Trip`.
+Re-validates everything, then sets vehicle & driver to `On Trip`, stamps `dispatched_at`.
 
 ### POST `/trips/{id}/complete`
 **Auth:** `fleet_manager` or `driver`
@@ -124,11 +144,11 @@ Re-validates everything, then sets vehicle & driver to `On Trip`.
   "revenue": 15000
 }
 ```
-Computes `actual_distance`, updates vehicle odometer, restores statuses to `Available`.
+Computes `actual_distance` from odometer delta, updates vehicle odometer, restores statuses to `Available`.
 
 ### POST `/trips/{id}/cancel`
 **Auth:** `fleet_manager` or `driver`
-From Draft: just cancels. From Dispatched: also restores vehicle/driver to Available.
+From `Draft`: just cancels. From `Dispatched`: also restores vehicle/driver to `Available`.
 
 ### GET `/trips?status=&vehicle_id=&driver_id=`
 ### GET `/trips/{id}`
@@ -146,7 +166,7 @@ From Draft: just cancels. From Dispatched: also restores vehicle/driver to Avail
   "cost": 5000
 }
 ```
-Auto-flips vehicle to `In Shop`.
+Auto-flips vehicle to `In Shop` (unless Retired). Rejects if vehicle is `On Trip`.
 
 ### POST `/maintenance/{id}/close`
 **Auth:** `fleet_manager` only
@@ -155,7 +175,7 @@ Auto-flips vehicle to `In Shop`.
   "final_cost": 5500
 }
 ```
-Auto-restores vehicle to `Available` (if no other open maintenance exists).
+Auto-restores vehicle to `Available` — only if not Retired AND no other open maintenance record on the same vehicle.
 
 ### GET `/maintenance?vehicle_id=&status=`
 ### GET `/maintenance/{id}`
@@ -173,6 +193,7 @@ Auto-restores vehicle to `Available` (if no other open maintenance exists).
   "cost": 2500
 }
 ```
+`trip_id` is optional. Validates vehicle and trip exist.
 
 ### GET `/fuel-logs?vehicle_id=&trip_id=`
 
@@ -190,7 +211,7 @@ Auto-restores vehicle to `Available` (if no other open maintenance exists).
   "description": "Highway toll"
 }
 ```
-Types: `Toll`, `Maintenance`, `Other`
+Types: `Toll | Maintenance | Other`
 
 ### GET `/expenses?vehicle_id=&trip_id=&type=`
 
@@ -198,13 +219,14 @@ Types: `Toll`, `Maintenance`, `Other`
 
 ## Analytics
 
-### GET `/analytics/dashboard?vehicle_type=&region=`
-Returns KPI cards:
+### GET `/analytics/dashboard?vehicle_type=&region=&status=`
+Returns KPI cards. All three query params filter vehicle-related KPIs.
 ```json
 {
   "active_vehicles": 5,
   "available_vehicles": 3,
   "vehicles_in_maintenance": 1,
+  "on_trip_vehicles": 2,
   "active_trips": 2,
   "pending_trips": 1,
   "drivers_on_duty": 4,
@@ -212,14 +234,15 @@ Returns KPI cards:
 }
 ```
 
-### GET `/analytics/vehicles`
+### GET `/analytics/vehicles?type=&region=`
 Per-vehicle rollup with distance, fuel efficiency, costs, revenue, ROI.
+Supports same `type` and `region` filters as the vehicle list.
 
 ### GET `/analytics/vehicles/{id}`
 Same shape, single vehicle.
 
-### GET `/analytics/vehicles/export/csv`
-Downloads CSV file with all vehicle analytics data.
+### GET `/analytics/vehicles/export/csv?type=&region=`
+Downloads CSV file with all vehicle analytics data. Supports same filters as the list endpoint.
 
 ---
 
@@ -238,9 +261,9 @@ Downloads CSV file with all vehicle analytics data.
 
 | Code | Meaning |
 |------|---------|
-| 400 | Business rule violation (validation, duplicate, invalid state) |
+| 400 | Business rule violation (validation, duplicate, invalid state transition) |
 | 401 | Missing/invalid/expired token |
-| 403 | Authenticated but wrong role |
+| 403 | Authenticated but wrong role for this action |
 | 404 | Referenced entity not found |
 
 All errors return `{ "detail": "human-readable message" }`

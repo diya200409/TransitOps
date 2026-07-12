@@ -5,6 +5,7 @@ TransitOps — Auth router: signup, login, /auth/me.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ..config import ALLOW_PUBLIC_PRIVILEGED_SIGNUP
 from ..database import get_db
 from ..deps import get_current_user
 from ..models import User, UserRole
@@ -16,7 +17,41 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(body: SignupRequest, db: Session = Depends(get_db)):
-    """Create a new user with the specified role."""
+    """Create a new user with the specified role and strong password requirements."""
+    # Validate password strength
+    import re
+    password = body.password
+    
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long.",
+        )
+    
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one uppercase letter.",
+        )
+    
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one lowercase letter.",
+        )
+    
+    if not re.search(r"\d", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one digit.",
+        )
+    
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>).",
+        )
+    
     # Validate role
     try:
         role_enum = UserRole(body.role)
@@ -24,6 +59,16 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid role '{body.role}'. Must be one of: {[r.value for r in UserRole]}",
+        )
+
+    if role_enum != UserRole.driver and not ALLOW_PUBLIC_PRIVILEGED_SIGNUP:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Public signup is limited to driver accounts. "
+                "Create privileged demo/admin users with seed.py or set "
+                "TRANSITOPS_ALLOW_PUBLIC_PRIVILEGED_SIGNUP=true for trusted demos."
+            ),
         )
 
     # Check duplicate email

@@ -61,18 +61,20 @@ def create_vehicle(body: VehicleCreate, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[VehicleResponse])
 def list_vehicles(
-    status: Optional[str] = Query(None),
+    status: Optional[VehicleStatus] = Query(None),
     type: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, description="Field to sort by: registration_number, name_model, type, status, odometer, acquisition_cost, created_at"),
+    sort_order: Optional[str] = Query("desc", description="asc or desc"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List vehicles with optional filters. Search matches registration_number or name_model."""
+    """List vehicles with optional filters and sorting. Search matches registration_number or name_model."""
     query = db.query(Vehicle)
 
     if status:
-        query = query.filter(Vehicle.status == VehicleStatus(status))
+        query = query.filter(Vehicle.status == status)
     if type:
         query = query.filter(Vehicle.type.ilike(f"%{type}%"))
     if region:
@@ -83,7 +85,23 @@ def list_vehicles(
             | (Vehicle.name_model.ilike(f"%{search}%"))
         )
 
-    return query.order_by(Vehicle.created_at.desc()).all()
+    # Sorting
+    sort_field_map = {
+        "registration_number": Vehicle.registration_number,
+        "name_model": Vehicle.name_model,
+        "type": Vehicle.type,
+        "status": Vehicle.status,
+        "odometer": Vehicle.odometer,
+        "acquisition_cost": Vehicle.acquisition_cost,
+        "created_at": Vehicle.created_at,
+    }
+    sort_col = sort_field_map.get(sort_by, Vehicle.created_at)
+    if sort_order == "asc":
+        query = query.order_by(sort_col.asc())
+    else:
+        query = query.order_by(sort_col.desc())
+
+    return query.all()
 
 
 @router.get("/available/pool", response_model=list[VehicleResponse])
