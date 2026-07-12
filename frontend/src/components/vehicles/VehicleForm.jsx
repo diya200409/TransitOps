@@ -35,7 +35,9 @@ export default function VehicleForm({ initial = null, onSubmit, onCancel, loadin
     if (initial) {
       setForm({
         registration_number: initial.registration_number || '',
-        name:                initial.name                || '',
+        // Backend returns name_model; normalizeVehicle maps it to `name`.
+        // Either field works as a fallback for safety.
+        name:                initial.name ?? initial.name_model ?? '',
         type:                initial.type                || '',
         max_load_capacity:   initial.max_load_capacity   ?? '',
         odometer:            initial.odometer            ?? '',

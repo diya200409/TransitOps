@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import { mockVehicleService } from '../mock/vehiclesMock'
-
-// ─── Toggle this to swap mock ↔ real API ─────────────────────────────────────
-// When backend is ready:
-//   1. Set USE_MOCK = false
-//   2. Import the real API functions below instead of mockVehicleService
-// import * as vehicleApi from '../api/vehicles'
-const USE_MOCK = true
-const service  = USE_MOCK ? mockVehicleService : null
-// ─────────────────────────────────────────────────────────────────────────────
+import * as vehicleApi from '../api/vehicles'
 
 /**
  * Custom hook — manages all vehicle data and CRUD operations.
+ * Now connected to the real FastAPI backend via src/api/vehicles.js.
+ *
+ * Field mapping (name ↔ name_model) is handled entirely inside
+ * src/api/vehicles.js — this hook and all UI components continue
+ * to use the `name` field as before.
+ *
  * Returns: { vehicles, loading, error, filters, setFilters,
  *            createVehicle, updateVehicle, deleteVehicle, refresh }
  */
@@ -25,7 +22,13 @@ export function useVehicles() {
     setLoading(true)
     setError(null)
     try {
-      const data = await service.getAll(filters)
+      // Build query params — only pass non-empty values
+      const params = {}
+      if (filters.search) params.search = filters.search
+      if (filters.type)   params.type   = filters.type
+      if (filters.status) params.status = filters.status
+
+      const data = await vehicleApi.getVehicles(params)
       setVehicles(data)
     } catch (err) {
       setError(err.message || 'Failed to load vehicles.')
@@ -39,19 +42,22 @@ export function useVehicles() {
   }, [fetchVehicles])
 
   async function createVehicle(data) {
-    const created = await service.create(data)
+    const created = await vehicleApi.createVehicle(data)
     await fetchVehicles()
     return created
   }
 
   async function updateVehicle(id, data) {
-    const updated = await service.update(id, data)
+    const updated = await vehicleApi.updateVehicle(id, data)
     await fetchVehicles()
     return updated
   }
 
   async function deleteVehicle(id) {
-    await service.delete(id)
+    // Backend blocks delete if vehicle has trip history and returns a
+    // descriptive 400 message: "Cannot delete … it has N trip(s). Set status to 'Retired'"
+    // We let the error bubble up so the caller can display it in the UI.
+    await vehicleApi.deleteVehicle(id)
     await fetchVehicles()
   }
 

@@ -83,7 +83,11 @@ export default function VehiclesPage() {
       setDeleteTarget(null)
       toast({ type: 'success', message: 'Vehicle deleted.' })
     } catch (err) {
-      toast({ type: 'error', message: err.message || 'Failed to delete vehicle.' })
+      // Keep the dialog closed but show the full backend message.
+      // Backend returns a descriptive message when trip history blocks delete,
+      // e.g. "Cannot delete … it has 2 trip(s). Set status to 'Retired' instead."
+      setDeleteTarget(null)
+      toast({ type: 'error', message: err.message || 'Failed to delete vehicle.', duration: 8000 })
     } finally {
       setDeleting(false)
     }

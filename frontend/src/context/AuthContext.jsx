@@ -3,14 +3,15 @@ import { login as loginApi } from '../api/auth'
 
 const AuthContext = createContext(null)
 
-const TOKEN_KEY = 'transit_ops_token'
+// Keys must match client.js — 'access_token' is what client.js reads
+const TOKEN_KEY = 'access_token'
 const USER_KEY  = 'transit_ops_user'
 
 // ─── Mock login bypass ───────────────────────────────────────────────────────
-// Set to true while backend is unavailable.
-// Any email + password will log in as a fleet_manager.
-// Flip to false once the FastAPI backend is running.
-const USE_MOCK_LOGIN = true
+// Set USE_MOCK_LOGIN = true while backend is unavailable.
+// Set USE_MOCK_LOGIN = false to use the real FastAPI backend.
+// Demo credentials: fleetmanager@transitops.com / password123
+const USE_MOCK_LOGIN = false
 
 const MOCK_USER = {
   id:    1,
@@ -21,10 +22,25 @@ const MOCK_USER = {
 const MOCK_TOKEN = 'mock-token-dev'
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Normalize a backend user object to the frontend shape.
+ * Backend returns { full_name, ... } — frontend expects { name, ... }.
+ */
+function normalizeUser(apiUser) {
+  return {
+    id:        apiUser.id,
+    email:     apiUser.email,
+    name:      apiUser.full_name ?? apiUser.name ?? 'User',  // full_name → name
+    role:      apiUser.role,
+    is_active: apiUser.is_active,
+    driver_id: apiUser.driver_id ?? null,
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null)   // { id, name, email, role }
+  const [user, setUser]       = useState(null)
   const [token, setToken]     = useState(null)
-  const [loading, setLoading] = useState(true)   // hydrating from localStorage
+  const [loading, setLoading] = useState(true)
 
   // Hydrate session from localStorage on first load
   useEffect(() => {
@@ -33,9 +49,6 @@ export function AuthProvider({ children }) {
       const storedUser  = localStorage.getItem(USER_KEY)
       if (storedToken && storedUser) {
         const parsed = JSON.parse(storedUser)
-        // If mock mode is on, always enforce fleet_manager role
-        // so stale localStorage can't break the UI
-        if (USE_MOCK_LOGIN) parsed.role = 'fleet_manager'
         setToken(storedToken)
         setUser(parsed)
       }
@@ -47,7 +60,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function login(email, password) {
-    // ── Mock bypass (remove when backend is ready) ──
+    // ── Mock bypass ──────────────────────────────────────────────────────────
     if (USE_MOCK_LOGIN) {
       localStorage.setItem(TOKEN_KEY, MOCK_TOKEN)
       localStorage.setItem(USER_KEY, JSON.stringify({ ...MOCK_USER, email }))
@@ -55,12 +68,16 @@ export function AuthProvider({ children }) {
       setUser({ ...MOCK_USER, email })
       return
     }
-    // ── Real API call ──
-    const data = await loginApi(email, password)
-    localStorage.setItem(TOKEN_KEY, data.token)
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user))
-    setToken(data.token)
-    setUser(data.user)
+
+    // ── Real FastAPI call ─────────────────────────────────────────────────────
+    // Response shape: { access_token, token_type, user: { id, email, full_name, role, ... } }
+    const data        = await loginApi(email, password)
+    const normalized  = normalizeUser(data.user)
+
+    localStorage.setItem(TOKEN_KEY, data.access_token)
+    localStorage.setItem(USER_KEY, JSON.stringify(normalized))
+    setToken(data.access_token)
+    setUser(normalized)
     return data
   }
 
@@ -71,7 +88,6 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  /** Convenience: true if logged-in user is a Fleet Manager (full CRUD access) */
   const isFleetManager = user?.role === 'fleet_manager'
 
   return (
