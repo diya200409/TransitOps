@@ -32,9 +32,13 @@ export default function FilterBar({ filters = [], values = {}, onChange }) {
           "
         >
           <option value="">All {label}</option>
-          {options.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
+          {options.map(opt => {
+            const val = typeof opt === 'string' ? opt : opt.value
+            const lbl = typeof opt === 'string' ? opt : opt.label
+            return (
+              <option key={val} value={val}>{lbl}</option>
+            )
+          })}
         </select>
       ))}
     </div>

@@ -153,3 +153,296 @@ function ExpenseForm({ onSubmit, onCancel, loading }) {
   )
 }
 
+export default function FuelExpensesPage() {
+  const { records: fuelRecords, loading: fuelLoading, error: fuelError, filters: fuelFilters, setFilters: setFuelFilters, createRecord, deleteRecord, refresh: refreshFuel } = useFuel()
+  const { expenses, loading: expenseLoading, error: expenseError, filters: expenseFilters, setFilters: setExpenseFilters, createExpense, deleteExpense, refresh: refreshExpenses } = useExpenses()
+  const { isFleetManager } = useAuth()
+  const toast = useToast()
+
+  const [activeTab, setActiveTab] = useState('fuel')
+  const [fuelModalOpen, setFuelModalOpen] = useState(false)
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteType, setDeleteType] = useState('fuel')
+  const [actionLoading, setActionLoading] = useState(false)
+
+  const currentLoading = activeTab === 'fuel' ? fuelLoading : expenseLoading
+  const currentError = activeTab === 'fuel' ? fuelError : expenseError
+  const currentFilters = activeTab === 'fuel' ? fuelFilters : expenseFilters
+  const currentRecords = activeTab === 'fuel' ? fuelRecords : expenses
+
+  const fuelTotalCost = fuelRecords.reduce((sum, rec) => sum + (rec.total_cost || 0), 0)
+  const fuelTotalLitres = fuelRecords.reduce((sum, rec) => sum + (rec.litres || 0), 0)
+  const fuelAvgCost = fuelTotalLitres ? fuelTotalCost / fuelTotalLitres : 0
+  const fuelRecordCount = fuelRecords.length
+
+  const expenseTotalAmount = expenses.reduce((sum, rec) => sum + (rec.amount || 0), 0)
+  const expenseCount = expenses.length
+  const expenseAvg = expenseCount ? expenseTotalAmount / expenseCount : 0
+  const categoryTotals = expenses.reduce((acc, rec) => {
+    acc[rec.category] = (acc[rec.category] || 0) + (rec.amount || 0)
+    return acc
+  }, {})
+  const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'
+
+  function handleTabChange(tab) {
+    setActiveTab(tab)
+  }
+
+  function handleSearchChange(value) {
+    if (activeTab === 'fuel') {
+      setFuelFilters(f => ({ ...f, search: value }))
+    } else {
+      setExpenseFilters(f => ({ ...f, search: value }))
+    }
+  }
+
+  function handleFilterChange(key, value) {
+    if (activeTab === 'fuel') {
+      setFuelFilters(f => ({ ...f, [key]: value }))
+    } else {
+      setExpenseFilters(f => ({ ...f, [key]: value }))
+    }
+  }
+
+  async function handleCreateFuel(data) {
+    setActionLoading(true)
+    try {
+      await createRecord(data)
+      setFuelModalOpen(false)
+      toast({ type: 'success', message: 'Fuel record added successfully.' })
+    } catch (err) {
+      toast({ type: 'error', message: err.message || 'Failed to add fuel record.' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleCreateExpense(data) {
+    setActionLoading(true)
+    try {
+      await createExpense(data)
+      setExpenseModalOpen(false)
+      toast({ type: 'success', message: 'Expense added successfully.' })
+    } catch (err) {
+      toast({ type: 'error', message: err.message || 'Failed to add expense.' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setActionLoading(true)
+    try {
+      if (deleteType === 'fuel') {
+        await deleteRecord(deleteTarget.id)
+        toast({ type: 'success', message: 'Fuel record deleted.' })
+      } else {
+        await deleteExpense(deleteTarget.id)
+        toast({ type: 'success', message: 'Expense deleted.' })
+      }
+      setDeleteTarget(null)
+    } catch (err) {
+      toast({ type: 'error', message: err.message || 'Unable to delete record.' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const fuelColumns = [
+    { key: 'record_number', header: 'Record', sortable: true },
+    { key: 'vehicle_name', header: 'Vehicle', render: (_, row) => `${row.vehicle_name} (${row.vehicle_reg})` },
+    { key: 'date', header: 'Date', render: value => formatDate(value) },
+    { key: 'litres', header: 'Litres', render: value => `${value} L` },
+    { key: 'cost_per_litre', header: 'Cost/L', render: value => formatCurrency(value) },
+    { key: 'total_cost', header: 'Total Cost', render: value => formatCurrency(value) },
+    { key: 'odometer', header: 'Odometer', render: value => `${value} km` },
+    { key: 'notes', header: 'Notes' },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (_, row) => (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteType('fuel')
+              setDeleteTarget(row)
+            }}
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-red-600"
+            aria-label="Delete fuel record"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const expenseColumns = [
+    { key: 'expense_number', header: 'Expense' },
+    { key: 'vehicle_name', header: 'Vehicle', render: (_, row) => `${row.vehicle_name} (${row.vehicle_reg})` },
+    { key: 'category', header: 'Category' },
+    { key: 'date', header: 'Date', render: value => formatDate(value) },
+    { key: 'amount', header: 'Amount', render: value => formatCurrency(value) },
+    { key: 'description', header: 'Description' },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (_, row) => (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteType('expense')
+              setDeleteTarget(row)
+            }}
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-red-600"
+            aria-label="Delete expense"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">Fuel & Expenses</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Track refuels, operational costs, and expense analytics for your fleet.</p>
+        </div>
+        <button
+          onClick={() => {
+            refreshFuel()
+            refreshExpenses()
+          }}
+          disabled={fuelLoading || expenseLoading}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-60"
+        >
+          <RefreshCw size={16} className={fuelLoading || expenseLoading ? 'animate-spin' : ''} />
+          Refresh Data
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => handleTabChange('fuel')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'fuel' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          <Fuel size={16} /> Fuel
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('expenses')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'expenses' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          <DollarSign size={16} /> Expenses
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+        <KPICard icon={Fuel} label="Fuel Records" value={fuelRecordCount} accent="bg-sky-500" />
+        <KPICard icon={Droplets} label="Total Fuel Spend" value={formatCurrency(fuelTotalCost)} accent="bg-blue-500" />
+        <KPICard icon={DollarSign} label="Total Expense Spend" value={formatCurrency(expenseTotalAmount)} accent="bg-emerald-500" />
+        <KPICard icon={BarChart3} label="Average Expense" value={formatCurrency(expenseAvg)} accent="bg-amber-500" />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Fuel Summary</p>
+          <div className="space-y-3 text-sm text-gray-600">
+            <div className="flex items-center justify-between"><span>Total Litres</span><span className="font-semibold text-gray-800">{fuelTotalLitres.toLocaleString('en-IN')} L</span></div>
+            <div className="flex items-center justify-between"><span>Average Cost/L</span><span className="font-semibold text-gray-800">{formatCurrency(fuelAvgCost)}</span></div>
+            <div className="flex items-center justify-between"><span>Last refresh</span><span className="text-gray-500">{new Date().toLocaleDateString('en-IN')}</span></div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Expense Summary</p>
+          <div className="space-y-3 text-sm text-gray-600">
+            <div className="flex items-center justify-between"><span>Expense Count</span><span className="font-semibold text-gray-800">{expenseCount}</span></div>
+            <div className="flex items-center justify-between"><span>Top Category</span><span className="font-semibold text-gray-800">{topCategory}</span></div>
+            <div className="flex items-center justify-between"><span>Avg Expense</span><span className="font-semibold text-gray-800">{formatCurrency(expenseAvg)}</span></div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Active Filters</p>
+          <div className="space-y-3 text-sm text-gray-600">
+            <div className="flex items-center justify-between"><span>Vehicle</span><span className="text-gray-800">{currentFilters.vehicle_id ? VEHICLE_OPTIONS.find(opt => opt.value === currentFilters.vehicle_id)?.label : 'All'}</span></div>
+            <div className="flex items-center justify-between"><span>Category</span><span className="text-gray-800">{currentFilters.category || 'All'}</span></div>
+            <div className="flex items-center justify-between"><span>From Date</span><span className="text-gray-800">{currentFilters.date || 'Any'}</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="w-full lg:w-80">
+          <SearchBar
+            value={currentFilters.search}
+            onChange={handleSearchChange}
+            placeholder={activeTab === 'fuel' ? 'Search fuel records…' : 'Search expenses…'}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <FilterBar
+            filters={activeTab === 'fuel' ? FUEL_FILTER_CONFIG : EXP_FILTER_CONFIG}
+            values={currentFilters}
+            onChange={handleFilterChange}
+          />
+          <button
+            type="button"
+            onClick={() => activeTab === 'fuel' ? setFuelModalOpen(true) : setExpenseModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800"
+          >
+            <Plus size={16} />
+            {activeTab === 'fuel' ? 'Add Fuel' : 'Add Expense'}
+          </button>
+        </div>
+      </div>
+
+      {currentError && !currentLoading ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          {currentError}
+        </div>
+      ) : null}
+
+      <DataTable
+        columns={activeTab === 'fuel' ? fuelColumns : expenseColumns}
+        rows={currentRecords}
+        loading={currentLoading}
+        error={currentError}
+        empty={{
+          title: activeTab === 'fuel' ? 'No fuel records' : 'No expense records',
+          description: activeTab === 'fuel'
+            ? 'Add fuel entries to begin tracking your fleet refuels.'
+            : 'Add expense entries to keep operational costs under control.',
+        }}
+        onRetry={activeTab === 'fuel' ? refreshFuel : refreshExpenses}
+        rowKey={row => row.id}
+      />
+
+      <Modal open={fuelModalOpen} onClose={() => !actionLoading && setFuelModalOpen(false)} title="Add Fuel Record" size="lg">
+        <FuelForm onSubmit={handleCreateFuel} onCancel={() => setFuelModalOpen(false)} loading={actionLoading} />
+      </Modal>
+
+      <Modal open={expenseModalOpen} onClose={() => !actionLoading && setExpenseModalOpen(false)} title="Add Expense" size="lg">
+        <ExpenseForm onSubmit={handleCreateExpense} onCancel={() => setExpenseModalOpen(false)} loading={actionLoading} />
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => !actionLoading && setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={actionLoading}
+        title={deleteType === 'fuel' ? 'Delete Fuel Record' : 'Delete Expense'}
+        message={deleteTarget ? `Are you sure you want to delete ${deleteType === 'fuel' ? deleteTarget.record_number : deleteTarget.expense_number}? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+      />
+    </div>
+  )
+}
+

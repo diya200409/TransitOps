@@ -21,8 +21,8 @@ const NAV_ITEMS = [
   { label: 'Drivers',        icon: UserCircle,      to: '/drivers',    active: true  },
   { label: 'Trips',          icon: Route,           to: '/trips',      active: true  },
   { label: 'Maintenance',    icon: Wrench,          to: '/maintenance',active: true  },
-  { label: 'Fuel & Expenses',icon: Fuel,            to: '/expenses',   active: false },
-  { label: 'Reports',        icon: BarChart3,       to: '/reports',    active: false },
+  { label: 'Fuel & Expenses',icon: Fuel,            to: '/expenses',   active: true  },
+  { label: 'Reports',        icon: BarChart3,       to: '/reports',    active: true  },
 ]
 
 export default function Sidebar() {

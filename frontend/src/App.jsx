@@ -8,7 +8,8 @@ import VehiclesPage from './pages/VehiclesPage'
 import DriversPage from './pages/DriversPage'
 import TripsPage from './pages/TripsPage'
 import MaintenancePage from './pages/MaintenancePage'
-import ComingSoonPage from './pages/ComingSoonPage'
+import FuelExpensesPage from './pages/FuelExpensesPage'
+import ReportsPage from './pages/ReportsPage'
 import LoadingSpinner from './components/common/LoadingSpinner'
 
 /**
@@ -47,8 +48,8 @@ function AppRoutes() {
         <Route path="drivers"     element={<DriversPage />} />
         <Route path="trips"       element={<TripsPage />} />
         <Route path="maintenance" element={<MaintenancePage />} />
-        <Route path="expenses"    element={<ComingSoonPage title="Fuel & Expenses" />} />
-        <Route path="reports"     element={<ComingSoonPage title="Reports & Analytics" />} />
+        <Route path="expenses"    element={<FuelExpensesPage />} />
+        <Route path="reports"     element={<ReportsPage />} />
       </Route>
 
       {/* Fallback — redirect unknown paths to dashboard */}
