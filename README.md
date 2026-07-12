@@ -14,7 +14,8 @@
 
 We have deployed TransitOps to a live production environment for instant access and testing by evaluators and judges:
 
-> **🔗 [Launch Live Application (`https://transit-opsss.vercel.app/login`)](https://transit-opsss.vercel.app/login)**
+> **🔗 [Launch Live Application (`https://transit-ops-4z1e.vercel.app/login`)](https://transit-ops-4z1e.vercel.app/login)**  
+> *(Alternative / Mirror URL: [https://transit-opsss.vercel.app/login](https://transit-opsss.vercel.app/login) | Backend API: `https://transitops-api-j5sg.onrender.com`)*
 
 ### 🔑 Instant Evaluation Credentials (Pre-seeded Demo Accounts)
 
@@ -345,7 +346,8 @@ GET /analytics/vehicles/export/pdf    # Export PDF report
 
 ## 🔑 Demo Credentials & Live Link
 
-**Live Application URL**: [https://transit-opsss.vercel.app/login](https://transit-opsss.vercel.app/login)
+**Live Application URL**: [https://transit-ops-4z1e.vercel.app/login](https://transit-ops-4z1e.vercel.app/login) *(or [https://transit-opsss.vercel.app/login](https://transit-opsss.vercel.app/login))*  
+**Live Backend API**: `https://transitops-api-j5sg.onrender.com`
 
 ```javascript
 // Fleet Manager (Full Access - Recommended for Evaluation)
