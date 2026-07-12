@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Plus, Truck } from 'lucide-react'
 import { useVehicles } from '../hooks/useVehicles'
+import { usePagination } from '../hooks/usePagination'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/common/Toast'
 import { VEHICLE_STATUSES } from '../constants/vehicleStatus'
 
 import SearchBar           from '../components/common/SearchBar'
 import FilterBar           from '../components/common/FilterBar'
+import PaginationBar       from '../components/common/PaginationBar'
 import Modal               from '../components/common/Modal'
 import ConfirmDialog       from '../components/common/ConfirmDialog'
 import VehicleTable        from '../components/vehicles/VehicleTable'
@@ -23,9 +25,11 @@ const FILTER_CONFIG = [
 export default function VehiclesPage() {
   const { isFleetManager } = useAuth()
   const toast = useToast()
+  const pagination = usePagination()
 
   const {
     vehicles,
+    total: totalVehicles,
     loading,
     error,
     filters,
@@ -34,7 +38,7 @@ export default function VehiclesPage() {
     updateVehicle,
     deleteVehicle,
     refresh,
-  } = useVehicles()
+  } = useVehicles({ skip: pagination.skip, limit: pagination.limit })
 
   // ── Modal state ──────────────────────────────────────────────────────────────
   const [addOpen, setAddOpen]         = useState(false)
@@ -94,7 +98,6 @@ export default function VehiclesPage() {
   }
 
   // ── Summary counts ───────────────────────────────────────────────────────────
-  const total     = vehicles.length
   const available = vehicles.filter(v => v.status === 'Available').length
   const onTrip    = vehicles.filter(v => v.status === 'On Trip').length
   const inShop    = vehicles.filter(v => v.status === 'In Shop').length
@@ -123,7 +126,7 @@ export default function VehiclesPage() {
       {!loading && !error && (
         <div className="flex flex-wrap gap-2">
           {[
-            { label: 'Total',     count: total,     color: 'bg-gray-100 text-gray-600'    },
+            { label: 'Total',     count: totalVehicles, color: 'bg-gray-100 text-gray-600'    },
             { label: 'Available', count: available,  color: 'bg-green-100 text-green-700'  },
             { label: 'On Trip',   count: onTrip,     color: 'bg-blue-100 text-blue-700'    },
             { label: 'In Shop',   count: inShop,     color: 'bg-amber-100 text-amber-700'  },
@@ -163,6 +166,7 @@ export default function VehiclesPage() {
         canMutate={isFleetManager}
         onAddVehicle={() => setAddOpen(true)}
       />
+      <PaginationBar {...pagination.barProps(totalVehicles)} loading={loading} />
 
       {/* ── Add Vehicle Modal ── */}
       <Modal

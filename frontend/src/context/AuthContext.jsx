@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { login as loginApi } from '../api/auth'
+import { login as loginApi, signup as signupApi, updateProfile as updateProfileApi, changePassword as changePasswordApi } from '../api/auth'
 
 const AuthContext = createContext(null)
 
@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function login(email, password) {
-    // ── Mock bypass ──────────────────────────────────────────────────────────
+    // ── Mock bypass ──────────────────────────────────────────────────────────────────────
     if (USE_MOCK_LOGIN) {
       localStorage.setItem(TOKEN_KEY, MOCK_TOKEN)
       localStorage.setItem(USER_KEY, JSON.stringify({ ...MOCK_USER, email }))
@@ -69,7 +69,7 @@ export function AuthProvider({ children }) {
       return
     }
 
-    // ── Real FastAPI call ─────────────────────────────────────────────────────
+    // ── Real FastAPI call ────────────────────────────────────────────────────────────────────
     // Response shape: { access_token, token_type, user: { id, email, full_name, role, ... } }
     const data        = await loginApi(email, password)
     const normalized  = normalizeUser(data.user)
@@ -79,6 +79,24 @@ export function AuthProvider({ children }) {
     setToken(data.access_token)
     setUser(normalized)
     return data
+  }
+
+  async function signup(email, password, full_name, role = 'driver') {
+    // Signup creates the user and then auto-logs them in by calling login
+    await signupApi(email, password, full_name, role)
+    await login(email, password)
+  }
+
+  async function updateProfile(data) {
+    const updated = await updateProfileApi(data)
+    const normalized = normalizeUser(updated)
+    localStorage.setItem(USER_KEY, JSON.stringify(normalized))
+    setUser(normalized)
+    return normalized
+  }
+
+  async function changePassword(current_password, new_password) {
+    return changePasswordApi(current_password, new_password)
   }
 
   function logout() {
@@ -91,7 +109,7 @@ export function AuthProvider({ children }) {
   const isFleetManager = user?.role === 'fleet_manager'
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isFleetManager }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, signup, updateProfile, changePassword, isFleetManager }}>
       {children}
     </AuthContext.Provider>
   )

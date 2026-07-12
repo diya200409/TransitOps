@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Bell, LogOut, ChevronDown } from 'lucide-react'
+import { useLocation, useNavigate, Link } from 'react-router-dom'
+import { Menu, Bell, LogOut, ChevronDown, UserCog } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const BREADCRUMBS = {
@@ -11,6 +11,7 @@ const BREADCRUMBS = {
   '/maintenance': 'Maintenance',
   '/expenses':    'Fuel & Expenses',
   '/reports':     'Reports',
+  '/profile':     'My Profile',
 }
 
 export default function TopBar({ onMenuClick }) {
@@ -91,6 +92,14 @@ export default function TopBar({ onMenuClick }) {
                     </span>
                   </div>
                 )}
+                <Link
+                  to="/profile"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  <UserCog size={14} />
+                  My Profile
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"

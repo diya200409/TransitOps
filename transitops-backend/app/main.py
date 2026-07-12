@@ -16,6 +16,7 @@ from .routers import (
     fuel_expenses,
     maintenance,
     trips,
+    users,
     vehicles,
 )
 
@@ -41,6 +42,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(vehicles.router)
 app.include_router(drivers.router)
 app.include_router(trips.router)

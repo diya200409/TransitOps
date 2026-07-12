@@ -44,7 +44,7 @@ def test_password_validation_logic():
         else:
             assert not all_checks, f"Password '{password}' should fail but passed validation"
     
-    print("✅ Password validation tests passed")
+    print("[PASS] Password validation tests passed")
 
 
 def test_file_extension_validation():
@@ -76,7 +76,7 @@ def test_file_extension_validation():
         ext = os.path.splitext(filename)[1].lower()
         assert ext not in ALLOWED_EXTENSIONS, f"Invalid file '{filename}' was allowed"
     
-    print("✅ File extension validation tests passed")
+    print("[PASS] File extension validation tests passed")
 
 
 def test_file_size_limit():
@@ -99,7 +99,7 @@ def test_file_size_limit():
         else:
             assert not is_valid, f"File size {file_size} should fail but was accepted"
     
-    print("✅ File size validation tests passed")
+    print("[PASS] File size validation tests passed")
 
 
 def test_odometer_validation():
@@ -129,7 +129,7 @@ def test_odometer_validation():
         else:
             assert not is_valid, f"Odometer change {current} -> {final} should fail but passed"
     
-    print("✅ Odometer validation tests passed")
+    print("[PASS] Odometer validation tests passed")
 
 
 def test_timezone_awareness():
@@ -158,7 +158,7 @@ def test_timezone_awareness():
     except TypeError as e:
         raise AssertionError(f"Timezone comparison failed: {e}")
     
-    print("✅ Timezone handling tests passed")
+    print("[PASS] Timezone handling tests passed")
 
 
 def test_cors_configuration():
@@ -186,7 +186,7 @@ def test_cors_configuration():
         assert pattern not in valid_origins, \
             f"Wildcard pattern '{pattern}' should not be in allowed origins"
     
-    print("✅ CORS configuration tests passed")
+    print("[PASS] CORS configuration tests passed")
 
 
 def test_path_traversal_prevention():
@@ -223,7 +223,7 @@ def test_path_traversal_prevention():
             assert ".." not in safe_name, \
                 f"Path traversal '{user_path}' was not properly sanitized to '{safe_name}'"
     
-    print("✅ Path traversal prevention tests passed")
+    print("[PASS] Path traversal prevention tests passed")
 
 
 def test_database_locking_logic():
@@ -238,7 +238,7 @@ def test_database_locking_logic():
     # Check that with_for_update() is present
     assert "with_for_update()" in test_code, "Database locking should use with_for_update()"
     
-    print("✅ Database locking pattern tests passed")
+    print("[PASS] Database locking pattern tests passed")
 
 
 def test_secret_key_warning():
@@ -277,7 +277,7 @@ def test_secret_key_warning():
     
     assert "WARNING" in output, "Should warn when SECRET_KEY is not set"
     
-    print("✅ Secret key warning tests passed")
+    print("[PASS] Secret key warning tests passed")
 
 
 if __name__ == "__main__":
@@ -297,16 +297,16 @@ if __name__ == "__main__":
         test_secret_key_warning()
         
         print("\n" + "="*60)
-        print("✅ ALL SECURITY TESTS PASSED!")
+        print("[PASS] ALL SECURITY TESTS PASSED!")
         print("="*60 + "\n")
         print("The backend security fixes are working correctly.")
         print("Please review SECURITY_FIXES.md for remaining recommendations.")
         
     except AssertionError as e:
-        print(f"\n❌ TEST FAILED: {e}")
+        print(f"\n[FAIL] TEST FAILED: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ UNEXPECTED ERROR: {e}")
+        print(f"\n[FAIL] UNEXPECTED ERROR: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

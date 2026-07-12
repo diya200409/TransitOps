@@ -5,9 +5,10 @@ Handles all dispatch validations and automatic vehicle/driver status transitions
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -25,6 +26,13 @@ from ..models import (
 from ..schemas import TripCompleteRequest, TripCreate, TripResponse
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
+
+
+class PaginatedTrips(BaseModel):
+    items: List[TripResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 # ── Shared Validation ────────────────────────────────────────────────────────
@@ -90,6 +98,17 @@ def _validate_trip_resources(
         )
 
 
+def _require_driver_trip_access(current_user: User, driver_id: int) -> None:
+    if current_user.role != UserRole.driver:
+        return
+
+    if current_user.driver_id != driver_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Driver accounts may only access trips assigned to their linked driver profile.",
+        )
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post(
@@ -114,6 +133,7 @@ def create_trip(
     if not driver:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found.")
 
+    _require_driver_trip_access(current_user, body.driver_id)
     _validate_trip_resources(vehicle, driver, body.cargo_weight, db)
 
     trip = Trip(
@@ -137,7 +157,7 @@ def create_trip(
 def dispatch_trip(
     trip_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_roles("fleet_manager", "driver")),
+    current_user: User = Depends(require_roles("fleet_manager", "driver")),
 ):
     """
     Dispatch a Draft trip with database locking to prevent race conditions.
@@ -148,6 +168,8 @@ def dispatch_trip(
     trip = db.query(Trip).filter(Trip.id == trip_id).with_for_update().first()
     if not trip:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found.")
+
+    _require_driver_trip_access(current_user, trip.driver_id)
 
     if trip.status != TripStatus.Draft:
         raise HTTPException(
@@ -178,7 +200,7 @@ def complete_trip(
     trip_id: int,
     body: TripCompleteRequest,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_roles("fleet_manager", "driver")),
+    current_user: User = Depends(require_roles("fleet_manager", "driver")),
 ):
     """
     Complete a Dispatched trip with row locking.
@@ -189,6 +211,8 @@ def complete_trip(
     trip = db.query(Trip).filter(Trip.id == trip_id).with_for_update().first()
     if not trip:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found.")
+
+    _require_driver_trip_access(current_user, trip.driver_id)
 
     if trip.status != TripStatus.Dispatched:
         raise HTTPException(
@@ -246,7 +270,7 @@ def complete_trip(
 def cancel_trip(
     trip_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(require_roles("fleet_manager", "driver")),
+    current_user: User = Depends(require_roles("fleet_manager", "driver")),
 ):
     """
     Cancel a trip (from Draft or Dispatched) with row locking.
@@ -256,6 +280,8 @@ def cancel_trip(
     trip = db.query(Trip).filter(Trip.id == trip_id).with_for_update().first()
     if not trip:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found.")
+
+    _require_driver_trip_access(current_user, trip.driver_id)
 
     if trip.status not in (TripStatus.Draft, TripStatus.Dispatched):
         raise HTTPException(
@@ -281,7 +307,7 @@ def cancel_trip(
     return trip
 
 
-@router.get("", response_model=list[TripResponse])
+@router.get("", response_model=PaginatedTrips)
 def list_trips(
     status: Optional[TripStatus] = Query(None),
     vehicle_id: Optional[int] = Query(None),
@@ -289,17 +315,21 @@ def list_trips(
     search: Optional[str] = Query(None, description="Search by source or destination"),
     sort_by: Optional[str] = Query(None, description="Field to sort by: source, destination, status, cargo_weight, planned_distance, revenue, created_at"),
     sort_order: Optional[str] = Query("desc", description="asc or desc"),
+    skip: int = Query(0, ge=0, description="Number of records to skip (pagination offset)"),
+    limit: int = Query(20, ge=1, le=200, description="Max records to return per page"),
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """List trips with optional filters, search, and sorting."""
+    """List trips with optional filters, search, sorting and pagination."""
     query = db.query(Trip)
 
     if status:
         query = query.filter(Trip.status == status)
-    if vehicle_id:
+    if current_user.role == UserRole.driver:
+        query = query.filter(Trip.driver_id == current_user.driver_id)
+    if vehicle_id is not None:
         query = query.filter(Trip.vehicle_id == vehicle_id)
-    if driver_id:
+    if driver_id is not None:
         query = query.filter(Trip.driver_id == driver_id)
     if search:
         query = query.filter(
@@ -323,17 +353,20 @@ def list_trips(
     else:
         query = query.order_by(sort_col.desc())
 
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedTrips(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{trip_id}", response_model=TripResponse)
 def get_trip(
     trip_id: int,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a single trip by ID."""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found.")
+    _require_driver_trip_access(current_user, trip.driver_id)
     return trip

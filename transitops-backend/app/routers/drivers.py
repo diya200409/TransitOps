@@ -1,12 +1,13 @@
 """
 TransitOps — Driver CRUD router.
-Endpoints: create, list (filterable), available pool, get, update, delete.
+Endpoints: create, list (filterable, paginated), available pool, get, update, delete.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -15,6 +16,13 @@ from ..models import Driver, DriverStatus, User
 from ..schemas import DriverCreate, DriverResponse, DriverUpdate, ExpiringDriverResponse
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
+
+
+class PaginatedDrivers(BaseModel):
+    items: List[DriverResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 @router.post(
@@ -58,16 +66,18 @@ def create_driver(body: DriverCreate, db: Session = Depends(get_db)):
     return driver
 
 
-@router.get("", response_model=list[DriverResponse])
+@router.get("", response_model=PaginatedDrivers)
 def list_drivers(
     status: Optional[DriverStatus] = Query(None),
     search: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by: name, status, safety_score, license_expiry_date, created_at"),
     sort_order: Optional[str] = Query("asc", description="asc or desc"),
+    skip: int = Query(0, ge=0, description="Number of records to skip (pagination offset)"),
+    limit: int = Query(20, ge=1, le=200, description="Max records to return per page"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List drivers with optional filters and sorting."""
+    """List drivers with optional filters, sorting and pagination."""
     query = db.query(Driver)
 
     if status:
@@ -92,7 +102,9 @@ def list_drivers(
     else:
         query = query.order_by(sort_col.desc())
 
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedDrivers(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/available/pool", response_model=list[DriverResponse])

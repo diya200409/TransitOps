@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './components/common/Toast'
 import AppLayout from './components/layout/AppLayout'
 import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
 import DashboardPage from './pages/DashboardPage'
 import VehiclesPage from './pages/VehiclesPage'
 import DriversPage from './pages/DriversPage'
@@ -10,6 +11,7 @@ import TripsPage from './pages/TripsPage'
 import MaintenancePage from './pages/MaintenancePage'
 import FuelExpensesPage from './pages/FuelExpensesPage'
 import ReportsPage from './pages/ReportsPage'
+import ProfilePage from './pages/ProfilePage'
 import LoadingSpinner from './components/common/LoadingSpinner'
 
 /**
@@ -32,7 +34,8 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public */}
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login"  element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
 
       {/* Protected — wrapped in AppLayout (sidebar + topbar) */}
       <Route
@@ -50,6 +53,7 @@ function AppRoutes() {
         <Route path="maintenance" element={<MaintenancePage />} />
         <Route path="expenses"    element={<FuelExpensesPage />} />
         <Route path="reports"     element={<ReportsPage />} />
+        <Route path="profile"     element={<ProfilePage />} />
       </Route>
 
       {/* Fallback — redirect unknown paths to dashboard */}

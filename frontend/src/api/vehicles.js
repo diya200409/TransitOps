@@ -38,6 +38,10 @@ function toBackend(data) {
 export async function getVehicles(params = {}) {
   const query = new URLSearchParams(params).toString()
   const data  = await apiClient.get(`/vehicles${query ? `?${query}` : ''}`)
+  // Backend now returns { items, total, skip, limit }
+  if (data && Array.isArray(data.items)) {
+    return { ...data, items: data.items.map(normalizeVehicle) }
+  }
   return Array.isArray(data) ? data.map(normalizeVehicle) : data
 }
 

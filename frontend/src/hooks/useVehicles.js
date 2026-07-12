@@ -9,33 +9,42 @@ import * as vehicleApi from '../api/vehicles'
  * src/api/vehicles.js — this hook and all UI components continue
  * to use the `name` field as before.
  *
- * Returns: { vehicles, loading, error, filters, setFilters,
+ * Returns: { vehicles, total, loading, error, filters, setFilters,
  *            createVehicle, updateVehicle, deleteVehicle, refresh }
  */
-export function useVehicles() {
+export function useVehicles(paginationParams = {}) {
   const [vehicles, setVehicles] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
-  const [filters, setFilters]   = useState({ search: '', type: '', status: '' })
+  const [total,    setTotal]    = useState(0)
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState(null)
+  const [filters,  setFilters]  = useState({ search: '', type: '', status: '' })
+
+  const { skip = 0, limit = 20 } = paginationParams
 
   const fetchVehicles = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      // Build query params — only pass non-empty values
-      const params = {}
+      const params = { skip, limit }
       if (filters.search) params.search = filters.search
       if (filters.type)   params.type   = filters.type
       if (filters.status) params.status = filters.status
 
       const data = await vehicleApi.getVehicles(params)
-      setVehicles(data)
+      // Backend returns { items, total, skip, limit }
+      if (data && Array.isArray(data.items)) {
+        setVehicles(data.items)
+        setTotal(data.total)
+      } else if (Array.isArray(data)) {
+        setVehicles(data)
+        setTotal(data.length)
+      }
     } catch (err) {
       setError(err.message || 'Failed to load vehicles.')
     } finally {
       setLoading(false)
     }
-  }, [filters])
+  }, [filters, skip, limit])
 
   useEffect(() => {
     fetchVehicles()
@@ -63,6 +72,7 @@ export function useVehicles() {
 
   return {
     vehicles,
+    total,
     loading,
     error,
     filters,

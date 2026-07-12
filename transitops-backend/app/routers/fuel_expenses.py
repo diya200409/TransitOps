@@ -3,9 +3,10 @@ TransitOps — Fuel Logs & Expenses router.
 Source of truth for cost aggregation in Analytics.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -19,6 +20,20 @@ from ..schemas import (
 )
 
 router = APIRouter(tags=["Fuel & Expenses"])
+
+
+class PaginatedFuelLogs(BaseModel):
+    items: List[FuelLogResponse]
+    total: int
+    skip: int
+    limit: int
+
+
+class PaginatedExpenses(BaseModel):
+    items: List[ExpenseResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 def _validate_vehicle_and_trip(
@@ -70,16 +85,18 @@ def create_fuel_log(
     return fuel_log
 
 
-@router.get("/fuel-logs", response_model=list[FuelLogResponse])
+@router.get("/fuel-logs", response_model=PaginatedFuelLogs)
 def list_fuel_logs(
     vehicle_id: Optional[int] = Query(None),
     trip_id: Optional[int] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by: liters, cost, date"),
     sort_order: Optional[str] = Query("desc", description="asc or desc"),
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(20, ge=1, le=200, description="Max records per page"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List fuel logs with optional filters and sorting."""
+    """List fuel logs with optional filters, sorting and pagination."""
     query = db.query(FuelLog)
 
     if vehicle_id is not None:
@@ -99,7 +116,9 @@ def list_fuel_logs(
     else:
         query = query.order_by(sort_col.desc())
 
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedFuelLogs(items=items, total=total, skip=skip, limit=limit)
 
 
 # ── Expenses ─────────────────────────────────────────────────────────────────
@@ -139,17 +158,19 @@ def create_expense(
     return expense
 
 
-@router.get("/expenses", response_model=list[ExpenseResponse])
+@router.get("/expenses", response_model=PaginatedExpenses)
 def list_expenses(
     vehicle_id: Optional[int] = Query(None),
     trip_id: Optional[int] = Query(None),
     type: Optional[ExpenseType] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by: type, amount, date"),
     sort_order: Optional[str] = Query("desc", description="asc or desc"),
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(20, ge=1, le=200, description="Max records per page"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List expenses with optional filters and sorting."""
+    """List expenses with optional filters, sorting and pagination."""
     query = db.query(Expense)
 
     if vehicle_id is not None:
@@ -171,4 +192,6 @@ def list_expenses(
     else:
         query = query.order_by(sort_col.desc())
 
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedExpenses(items=items, total=total, skip=skip, limit=limit)

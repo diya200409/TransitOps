@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Zap, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -118,9 +118,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo hint */}
           <p className="text-xs text-gray-400 text-center mt-6">
-            Demo: use your backend credentials or mock them via the AuthContext.
+            Don't have an account?{' '}
+            <Link to="/signup" className="text-blue-600 hover:underline font-medium">Sign up</Link>
           </p>
         </div>
       </div>

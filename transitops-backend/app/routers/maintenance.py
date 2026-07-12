@@ -4,9 +4,10 @@ Create/close maintenance records with automatic vehicle status transitions.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -21,6 +22,13 @@ from ..models import (
 from ..schemas import MaintenanceCloseRequest, MaintenanceCreate, MaintenanceResponse
 
 router = APIRouter(prefix="/maintenance", tags=["Maintenance"])
+
+
+class PaginatedMaintenance(BaseModel):
+    items: List[MaintenanceResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 @router.post(
@@ -118,19 +126,21 @@ def close_maintenance(
     return record
 
 
-@router.get("", response_model=list[MaintenanceResponse])
+@router.get("", response_model=PaginatedMaintenance)
 def list_maintenance(
     vehicle_id: Optional[int] = Query(None),
     status: Optional[MaintenanceStatus] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by: status, cost, created_at, closed_at"),
     sort_order: Optional[str] = Query("desc", description="asc or desc"),
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(20, ge=1, le=200, description="Max records per page"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List maintenance records with optional filters and sorting."""
+    """List maintenance records with optional filters, sorting and pagination."""
     query = db.query(MaintenanceRecord)
 
-    if vehicle_id:
+    if vehicle_id is not None:
         query = query.filter(MaintenanceRecord.vehicle_id == vehicle_id)
     if status:
         query = query.filter(MaintenanceRecord.status == status)
@@ -148,7 +158,9 @@ def list_maintenance(
     else:
         query = query.order_by(sort_col.desc())
 
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedMaintenance(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{record_id}", response_model=MaintenanceResponse)

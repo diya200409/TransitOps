@@ -8,6 +8,7 @@ import {
   Wrench,
   Fuel,
   BarChart3,
+  UserCog,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { label: 'Maintenance',    icon: Wrench,          to: '/maintenance',active: true  },
   { label: 'Fuel & Expenses',icon: Fuel,            to: '/expenses',   active: true  },
   { label: 'Reports',        icon: BarChart3,       to: '/reports',    active: true  },
+  { label: 'My Profile',     icon: UserCog,         to: '/profile',    active: true  },
 ]
 
 export default function Sidebar() {

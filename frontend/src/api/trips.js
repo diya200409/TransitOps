@@ -27,9 +27,16 @@ export async function getTrips(params = {}) {
   if (params.search) p.search = params.search
   // Map frontend 'Pending' filter → backend 'Draft'
   if (params.status) p.status = params.status === 'Pending' ? 'Draft' : params.status
+  if (params.skip  !== undefined) p.skip  = params.skip
+  if (params.limit !== undefined) p.limit = params.limit
   const query = new URLSearchParams(p).toString()
   const data  = await apiClient.get(`/trips${query ? `?${query}` : ''}`)
-  return Array.isArray(data) ? data.map(normalizeTrip) : data
+  // Backend now returns { items, total, skip, limit }
+  if (data && Array.isArray(data.items)) {
+    return { items: data.items.map(normalizeTrip), total: data.total, skip: data.skip, limit: data.limit }
+  }
+  // Fallback for plain arrays (backward compat)
+  return Array.isArray(data) ? { items: data.map(normalizeTrip), total: data.length } : data
 }
 
 export async function getTrip(id) {

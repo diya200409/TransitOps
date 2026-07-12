@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { Plus, Eye, Pencil, Trash2, Zap, XCircle, Route, RefreshCw } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, Zap, XCircle, CheckCircle, Route, RefreshCw } from 'lucide-react'
 import { useTrips }           from '../hooks/useTrips'
+import { usePagination }      from '../hooks/usePagination'
 import { useAuth }            from '../context/AuthContext'
 import { useToast }           from '../components/common/Toast'
 import { TRIP_STATUSES }      from '../constants/tripStatus'
@@ -9,6 +10,7 @@ import { formatDate }         from '../utils/formatters'
 import KPICard          from '../components/common/KPICard'
 import SearchBar        from '../components/common/SearchBar'
 import FilterBar        from '../components/common/FilterBar'
+import PaginationBar    from '../components/common/PaginationBar'
 import DataTable        from '../components/common/DataTable'
 import Modal            from '../components/common/Modal'
 import ConfirmDialog    from '../components/common/ConfirmDialog'
@@ -16,6 +18,7 @@ import TripStatusBadge  from '../components/trips/TripStatusBadge'
 import TripForm         from '../components/trips/TripForm'
 import TripDetailModal  from '../components/trips/TripDetailModal'
 import DispatchModal    from '../components/trips/DispatchModal'
+import TripCompleteModal from '../components/trips/TripCompleteModal'
 
 const FILTER_CONFIG = [
   { key: 'status', label: 'Status', options: TRIP_STATUSES },
@@ -24,19 +27,21 @@ const FILTER_CONFIG = [
 export default function TripsPage() {
   const { isFleetManager } = useAuth()
   const toast = useToast()
-  const { trips, loading, error, filters, setFilters, createTrip, updateTrip, dispatchTrip, cancelTrip, deleteTrip, refresh } = useTrips()
+  const pagination = usePagination()
+  const { trips, total: totalTrips, loading, error, filters, setFilters, createTrip, updateTrip, dispatchTrip, cancelTrip, completeTrip, deleteTrip, refresh } = useTrips({ skip: pagination.skip, limit: pagination.limit })
 
   const [createOpen,   setCreateOpen]   = useState(false)
   const [editTarget,   setEditTarget]   = useState(null)
   const [viewTarget,   setViewTarget]   = useState(null)
   const [dispatchTarget, setDispatchTarget] = useState(null)
+  const [completeTarget, setCompleteTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [saving,   setSaving]   = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [saving,      setSaving]      = useState(false)
+  const [deleting,    setDeleting]    = useState(false)
   const [dispatching, setDispatching] = useState(false)
+  const [completing,  setCompleting]  = useState(false)
 
   // ── Summary counts ──────────────────────────────────────────────────────
-  const total     = trips.length
   const pending   = trips.filter(t => t.status === 'Pending' || t.status === 'Draft').length
   const active    = trips.filter(t => t.status === 'Dispatched').length
   const completed = trips.filter(t => t.status === 'Completed').length
@@ -61,6 +66,19 @@ export default function TripsPage() {
     try   { await dispatchTrip(dispatchTarget.id); setDispatchTarget(null); toast({ type: 'success', message: `${dispatchTarget.trip_number} dispatched.` }) }
     catch (e) { toast({ type: 'error', message: e.message }) }
     finally   { setDispatching(false) }
+  }
+
+  async function handleComplete(data) {
+    setCompleting(true)
+    try {
+      await completeTrip(completeTarget.id, data)
+      setCompleteTarget(null)
+      toast({ type: 'success', message: `${completeTarget.trip_number} marked as Completed.` })
+    } catch (e) {
+      toast({ type: 'error', message: e.message })
+    } finally {
+      setCompleting(false)
+    }
   }
 
   async function handleCancel(trip) {
@@ -126,6 +144,9 @@ export default function TripsPage() {
           {isFleetManager && row.status === 'Pending' && (
             <button onClick={() => setDispatchTarget(row)} className="p-1.5 rounded-lg text-gray-400 hover:bg-indigo-50 hover:text-indigo-600" title="Dispatch"><Zap size={14} /></button>
           )}
+          {isFleetManager && row.status === 'Dispatched' && (
+            <button onClick={() => setCompleteTarget(row)} className="p-1.5 rounded-lg text-gray-400 hover:bg-green-50 hover:text-green-600" title="Complete trip"><CheckCircle size={14} /></button>
+          )}
           {isFleetManager && ['Pending','Dispatched'].includes(row.status) && (
             <button onClick={() => setEditTarget(row)} className="p-1.5 rounded-lg text-gray-400 hover:bg-amber-50 hover:text-amber-600" title="Edit"><Pencil size={14} /></button>
           )}
@@ -162,7 +183,7 @@ export default function TripsPage() {
 
       {/* ── KPI Summary ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard icon={Route}   label="Total Trips"     value={loading ? null : total}     accent="bg-blue-500"   loading={loading} />
+        <KPICard icon={Route}   label="Total Trips"     value={loading ? null : totalTrips} accent="bg-blue-500"   loading={loading} />
         <KPICard icon={Route}   label="Pending"         value={loading ? null : pending}   accent="bg-amber-500"  loading={loading} />
         <KPICard icon={Zap}     label="Active"          value={loading ? null : active}    accent="bg-indigo-500" loading={loading} />
         <KPICard icon={Route}   label="Completed"       value={loading ? null : completed} accent="bg-green-500"  loading={loading} />
@@ -199,6 +220,7 @@ export default function TripsPage() {
           action: isFleetManager ? { label: 'Create Trip', onClick: () => setCreateOpen(true) } : undefined,
         }}
       />
+      <PaginationBar {...pagination.barProps(totalTrips)} loading={loading} />
 
       {/* ── Modals ── */}
       <Modal open={createOpen} onClose={() => !saving && setCreateOpen(false)} title="Create Trip" size="lg">
@@ -217,6 +239,14 @@ export default function TripsPage() {
         onClose={() => setDispatchTarget(null)}
         onConfirm={handleDispatch}
         loading={dispatching}
+      />
+
+      <TripCompleteModal
+        trip={completeTarget}
+        open={Boolean(completeTarget)}
+        onClose={() => setCompleteTarget(null)}
+        onConfirm={handleComplete}
+        loading={completing}
       />
 
       <ConfirmDialog

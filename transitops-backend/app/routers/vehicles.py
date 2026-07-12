@@ -1,11 +1,12 @@
 """
 TransitOps — Vehicle CRUD router.
-Endpoints: create, list (filterable), available pool, get, update, delete.
+Endpoints: create, list (filterable, paginated), available pool, get, update, delete.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -14,6 +15,13 @@ from ..models import User, Vehicle, VehicleStatus
 from ..schemas import VehicleCreate, VehicleResponse, VehicleUpdate
 
 router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
+
+
+class PaginatedVehicles(BaseModel):
+    items: List[VehicleResponse]
+    total: int
+    skip: int
+    limit: int
 
 
 @router.post(
@@ -59,7 +67,7 @@ def create_vehicle(body: VehicleCreate, db: Session = Depends(get_db)):
     return vehicle
 
 
-@router.get("", response_model=list[VehicleResponse])
+@router.get("", response_model=PaginatedVehicles)
 def list_vehicles(
     status: Optional[VehicleStatus] = Query(None),
     type: Optional[str] = Query(None),
@@ -67,10 +75,12 @@ def list_vehicles(
     search: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by: registration_number, name_model, type, status, odometer, acquisition_cost, created_at"),
     sort_order: Optional[str] = Query("desc", description="asc or desc"),
+    skip: int = Query(0, ge=0, description="Number of records to skip (pagination offset)"),
+    limit: int = Query(20, ge=1, le=200, description="Max records to return per page"),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
-    """List vehicles with optional filters and sorting. Search matches registration_number or name_model."""
+    """List vehicles with optional filters, sorting and pagination."""
     query = db.query(Vehicle)
 
     if status:
@@ -101,7 +111,9 @@ def list_vehicles(
     else:
         query = query.order_by(sort_col.desc())
 
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return PaginatedVehicles(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/available/pool", response_model=list[VehicleResponse])
