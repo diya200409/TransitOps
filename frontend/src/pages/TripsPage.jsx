@@ -37,8 +37,8 @@ export default function TripsPage() {
 
   // ── Summary counts ──────────────────────────────────────────────────────
   const total     = trips.length
-  const pending   = trips.filter(t => t.status === 'Pending').length
-  const active    = trips.filter(t => ['Dispatched','In Progress'].includes(t.status)).length
+  const pending   = trips.filter(t => t.status === 'Pending' || t.status === 'Draft').length
+  const active    = trips.filter(t => t.status === 'Dispatched').length
   const completed = trips.filter(t => t.status === 'Completed').length
 
   // ── Handlers ────────────────────────────────────────────────────────────

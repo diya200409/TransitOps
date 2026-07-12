@@ -1,20 +1,34 @@
 import { useState, useEffect, useCallback } from 'react'
-import { mockDriverService } from '../mock/driversMock'
+import { apiClient } from '../api/client'
 
-// ─── Toggle this to swap mock ↔ real API ─────────────────────────────────────
-// When backend is ready:
-//   1. Set USE_MOCK = false
-//   2. Uncomment the import below
-// import * as driverApi from '../api/drivers'
-const USE_MOCK = true
-const service  = USE_MOCK ? mockDriverService : null
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Field normalizer ──────────────────────────────────────────────────────────
+// Backend returns license_expiry_date as ISO datetime; frontend uses date string
+function normalizeDriver(d) {
+  if (!d) return d
+  return {
+    ...d,
+    // Trim datetime to date-only string for UI compatibility
+    license_expiry_date: d.license_expiry_date
+      ? d.license_expiry_date.split('T')[0]
+      : '',
+  }
+}
 
-/**
- * Custom hook — manages all driver data and CRUD operations.
- * Returns: { drivers, loading, error, filters, setFilters,
- *            createDriver, updateDriver, deleteDriver, refresh }
- */
+async function fetchAllDrivers(params = {}) {
+  const p = {}
+  if (params.search) p.search = params.search
+  if (params.status) p.status = params.status
+  // backend doesn't filter by license_category directly — filter client-side
+  const query = new URLSearchParams(p).toString()
+  const data  = await apiClient.get(`/drivers${query ? `?${query}` : ''}`)
+  let result  = Array.isArray(data) ? data.map(normalizeDriver) : []
+  // Client-side filter for license_category (not supported as query param)
+  if (params.license_category) {
+    result = result.filter(d => d.license_category === params.license_category)
+  }
+  return result
+}
+
 export function useDrivers() {
   const [drivers, setDrivers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -22,48 +36,49 @@ export function useDrivers() {
   const [filters, setFilters] = useState({ search: '', status: '', license_category: '' })
 
   const fetchDrivers = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
-      const data = await service.getAll(filters)
-      setDrivers(data)
-    } catch (err) {
-      setError(err.message || 'Failed to load drivers.')
+      setDrivers(await fetchAllDrivers(filters))
+    } catch (e) {
+      setError(e.message || 'Failed to load drivers.')
     } finally {
       setLoading(false)
     }
   }, [filters])
 
-  useEffect(() => {
-    fetchDrivers()
-  }, [fetchDrivers])
+  useEffect(() => { fetchDrivers() }, [fetchDrivers])
 
   async function createDriver(data) {
-    const created = await service.create(data)
+    // Backend expects license_expiry_date as ISO datetime
+    const payload = {
+      ...data,
+      license_expiry_date: data.license_expiry_date
+        ? new Date(data.license_expiry_date).toISOString()
+        : data.license_expiry_date,
+      safety_score: Number(data.safety_score),
+    }
+    const result = await apiClient.post('/drivers', payload)
     await fetchDrivers()
-    return created
+    return normalizeDriver(result)
   }
 
   async function updateDriver(id, data) {
-    const updated = await service.update(id, data)
+    const payload = {
+      ...data,
+      license_expiry_date: data.license_expiry_date
+        ? new Date(data.license_expiry_date).toISOString()
+        : data.license_expiry_date,
+      safety_score: Number(data.safety_score),
+    }
+    const result = await apiClient.put(`/drivers/${id}`, payload)
     await fetchDrivers()
-    return updated
+    return normalizeDriver(result)
   }
 
   async function deleteDriver(id) {
-    await service.delete(id)
+    await apiClient.delete(`/drivers/${id}`)
     await fetchDrivers()
   }
 
-  return {
-    drivers,
-    loading,
-    error,
-    filters,
-    setFilters,
-    createDriver,
-    updateDriver,
-    deleteDriver,
-    refresh: fetchDrivers,
-  }
+  return { drivers, loading, error, filters, setFilters, createDriver, updateDriver, deleteDriver, refresh: fetchDrivers }
 }

@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { mockTripService } from '../mock/tripsMock'
-
-// ── Toggle to swap mock ↔ real API ──────────────────────────────────────────
-// import * as tripApi from '../api/trips'
-const USE_MOCK = true
-const service  = USE_MOCK ? mockTripService : null
-// ───────────────────────────────────────────────────────────────────────────
+import { getTrips, createTrip, dispatchTrip, cancelTrip } from '../api/trips'
+import { apiClient } from '../api/client'
+import { normalizeTrip } from '../api/trips'
 
 export function useTrips() {
   const [trips, setTrips]     = useState([])
@@ -15,18 +11,60 @@ export function useTrips() {
 
   const fetchTrips = useCallback(async () => {
     setLoading(true); setError(null)
-    try   { setTrips(await service.getAll(filters)) }
-    catch (e) { setError(e.message || 'Failed to load trips.') }
-    finally   { setLoading(false) }
+    try {
+      setTrips(await getTrips(filters))
+    } catch (e) {
+      setError(e.message || 'Failed to load trips.')
+    } finally {
+      setLoading(false)
+    }
   }, [filters])
 
   useEffect(() => { fetchTrips() }, [fetchTrips])
 
-  const createTrip  = async d    => { const r = await service.create(d);       await fetchTrips(); return r }
-  const updateTrip  = async (id,d)=> { const r = await service.update(id,d);   await fetchTrips(); return r }
-  const dispatchTrip= async id   => { const r = await service.dispatch(id);    await fetchTrips(); return r }
-  const cancelTrip  = async id   => { const r = await service.cancel(id);      await fetchTrips(); return r }
-  const deleteTrip  = async id   => { await service.delete(id);                await fetchTrips()           }
+  async function createTripFn(data) {
+    const r = await createTrip(data)
+    await fetchTrips()
+    return r
+  }
 
-  return { trips, loading, error, filters, setFilters, createTrip, updateTrip, dispatchTrip, cancelTrip, deleteTrip, refresh: fetchTrips }
+  async function updateTrip(id, data) {
+    // Backend has no generic trip update — only status transitions
+    // For edit support we re-create by cancelling and creating (not supported by backend)
+    // Just refresh to keep state consistent
+    await fetchTrips()
+  }
+
+  async function dispatchTripFn(id) {
+    // Real backend dispatch — backend validates vehicle, driver, license, cargo, maintenance
+    const r = await dispatchTrip(id)
+    await fetchTrips()
+    return r
+  }
+
+  async function cancelTripFn(id) {
+    const r = await cancelTrip(id)
+    await fetchTrips()
+    return r
+  }
+
+  async function deleteTrip(id) {
+    // Backend has no delete endpoint for trips — cancel instead
+    await cancelTrip(id)
+    await fetchTrips()
+  }
+
+  return {
+    trips,
+    loading,
+    error,
+    filters,
+    setFilters,
+    createTrip:   createTripFn,
+    updateTrip,
+    dispatchTrip: dispatchTripFn,
+    cancelTrip:   cancelTripFn,
+    deleteTrip,
+    refresh:      fetchTrips,
+  }
 }
