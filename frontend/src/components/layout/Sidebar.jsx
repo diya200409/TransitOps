@@ -19,8 +19,8 @@ const NAV_ITEMS = [
   { label: 'Dashboard',      icon: LayoutDashboard, to: '/',           active: true  },
   { label: 'Vehicles',       icon: Truck,           to: '/vehicles',   active: true  },
   { label: 'Drivers',        icon: UserCircle,      to: '/drivers',    active: true  },
-  { label: 'Trips',          icon: Route,           to: '/trips',      active: false },
-  { label: 'Maintenance',    icon: Wrench,          to: '/maintenance',active: false },
+  { label: 'Trips',          icon: Route,           to: '/trips',      active: true  },
+  { label: 'Maintenance',    icon: Wrench,          to: '/maintenance',active: true  },
   { label: 'Fuel & Expenses',icon: Fuel,            to: '/expenses',   active: false },
   { label: 'Reports',        icon: BarChart3,       to: '/reports',    active: false },
 ]
