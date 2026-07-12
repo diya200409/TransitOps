@@ -1,0 +1,68 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './components/common/Toast'
+import AppLayout from './components/layout/AppLayout'
+import LoginPage from './pages/LoginPage'
+import DashboardPage from './pages/DashboardPage'
+import VehiclesPage from './pages/VehiclesPage'
+import DriversPage from './pages/DriversPage'
+import ComingSoonPage from './pages/ComingSoonPage'
+import LoadingSpinner from './components/common/LoadingSpinner'
+
+/**
+ * Route guard — redirects to /login if user is not authenticated.
+ * Shows a spinner while the auth state is being hydrated from localStorage.
+ */
+function PrivateRoute({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <LoadingSpinner size="lg" center />
+      </div>
+    )
+  }
+  return user ? children : <Navigate to="/login" replace />
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Protected — wrapped in AppLayout (sidebar + topbar) */}
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <AppLayout />
+          </PrivateRoute>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        <Route path="vehicles"    element={<VehiclesPage />} />
+        <Route path="drivers"     element={<DriversPage />} />
+        <Route path="trips"       element={<ComingSoonPage title="Trip Management" />} />
+        <Route path="maintenance" element={<ComingSoonPage title="Maintenance" />} />
+        <Route path="expenses"    element={<ComingSoonPage title="Fuel & Expenses" />} />
+        <Route path="reports"     element={<ComingSoonPage title="Reports & Analytics" />} />
+      </Route>
+
+      {/* Fallback — redirect unknown paths to dashboard */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}
